@@ -1,0 +1,957 @@
+<<<<<<< HEAD
+// Prisma schema for the clinic system, backed by MongoDB.
+//
+// The models mirror the domain types in lib/types.ts. Status / type / priority
+// fields are stored as plain strings so the exact values the app already uses
+// (e.g. "awaiting-triage") carry over unchanged — no enum translation layer.
+=======
+// NebTech Store — Prisma schema for MongoDB
+// Ported from Laravel migrations. Money uses Float (Mongo connector has no Decimal).
+>>>>>>> e44a6e2 (Initial snapshot before TypeScript migration)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+<<<<<<< HEAD
+// --- Embedded (composite) types ------------------------------------------
+
+type Vitals {
+  weight        String
+  temperature   String
+  bloodPressure String
+}
+
+type Med {
+  id        String
+  name      String
+  dosage    String
+  frequency String
+  duration  String
+  dispensed Boolean
+}
+
+// One step of a visit's journey: when the visit entered each status. The
+// first event is reception check-in; the last (status "completed") closes it.
+type StageEvent {
+  status String
+  at     DateTime
+}
+
+// Recorded at the pharmacy POS when the visit is paid for and closed.
+type Payment {
+  amount    Float
+  method    String // cash | mpesa | card
+  reference String? // e.g. M-Pesa transaction code
+  paidAt    DateTime
+}
+
+// One line of a pharmacy sale: which catalog medicine, how many, at what price.
+type SaleItem {
+  medicineId String
+  name       String // denormalised so history survives catalog edits
+  quantity   Int
+  unitPrice  Float
+}
+
+// --- Models --------------------------------------------------------------
+
+// Every staff member (receptionist, nurse, doctor, lab/radiology tech,
+// pharmacist, admin) is a User. Doctors are simply users with role "doctor";
+// the doctor roster reception assigns to is `User where role = doctor`.
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  username     String   @unique
+  name         String
+  passwordHash String
+  role         String // admin | receptionist | nurse | doctor | lab | radiology | pharmacist
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model Patient {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  mrn            String   @unique
+  nationalId     String   @unique
+  firstName      String
+  lastName       String
+  gender         String
+  age            Int
+  phone          String
+  // The User who onboarded this patient. Receptionists only see their own;
+  // null (pre-existing records) is visible to everyone.
+  registeredById String?  @db.ObjectId
+  createdAt      DateTime @default(now())
+  visits         Visit[]
+}
+
+model Visit {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  patient          Patient  @relation(fields: [patientId], references: [id])
+  patientId        String   @db.ObjectId
+  vitals           Vitals
+  priority         String?
+  complaint        String   @default("")
+  assignedDoctorId String?    @db.ObjectId // references a User with role "doctor"
+  status           String
+  timeline         StageEvent[] // timestamped status history, check-in → completed
+  payment          Payment?
+  saleItems        SaleItem[] // what the pharmacy actually sold at checkout
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  orders           Order[]
+}
+
+// One Daraja STK push. Created when the pharmacist requests payment; settled
+// by the Daraja callback (when reachable) or by polling the query API.
+model MpesaTransaction {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  checkoutRequestId String   @unique
+  phone             String
+  amount            Float
+  status            String   @default("pending") // pending | success | failed
+  receipt           String? // MpesaReceiptNumber from the callback
+  resultDesc        String?
+  visitId           String?  @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// The pharmacy's stock catalog. The pharmacist searches this at the POS.
+model Medicine {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  strength  String // e.g. "500mg", "20/120"
+  form      String // tablet | capsule | syrup | inhaler | cream | sachet
+  unitPrice Float
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// A staff absence request: multi-day leave, or a short "excuse" of at most
+// two hours. Created by any staff member; approved or declined by an admin.
+model ActivityRequest {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  userName    String // denormalised so the admin list survives user edits
+  userRole    String
+  type        String // leave | excuse
+  reason      String
+  startDate   DateTime? // leave: first day away
+  endDate     DateTime? // leave: last day away
+  excuseDate  DateTime? // excuse: which day
+  excuseHours Float? // excuse: duration, capped at 2
+  excuseStart DateTime? // excuse: leaves at
+  excuseEnd   DateTime? // excuse: due back (start + hours) — active again after
+  status      String    @default("pending") // pending | approved | declined
+  decidedById String?   @db.ObjectId
+  decidedBy   String? // admin's name at decision time
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Order {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  visit        Visit     @relation(fields: [visitId], references: [id])
+  visitId      String    @db.ObjectId
+  type         String
+  title        String
+  instructions String?
+  status       String
+  result       String?
+  meds         Med[]
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+=======
+// ─────────────────────────── Auth / RBAC ───────────────────────────
+
+model User {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  email           String    @unique
+  phone           String?
+  emailVerifiedAt DateTime?
+  password        String
+  isActive        Boolean   @default(true)
+  branchId        String?   @db.ObjectId
+  branch          Branch?   @relation("UserBranch", fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roleIds         String[]  @db.ObjectId
+  roles           Role[]    @relation(fields: [roleIds], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  ownedBranches   Branch[]        @relation("BranchOwner")
+  sales           Sale[]          @relation("SaleCashier")
+  shifts          Shift[]         @relation("ShiftCashier")
+  expenses        Expense[]       @relation("ExpenseRecorder")
+  stockMovements  StockMovement[]
+  auditLogs       AuditLog[]
+  cartItems       CartItem[]
+  loans           Loan[]
+  loanPayments    LoanPayment[]
+  invoices        Invoice[]
+  mpesaTxns       MpesaTransaction[]
+}
+
+model Role {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  name          String       @unique // owner, super_admin, manager, cashier...
+  displayName   String
+  description   String?
+  permissionIds String[]     @db.ObjectId
+  permissions   Permission[] @relation(fields: [permissionIds], references: [id])
+  userIds       String[]     @db.ObjectId
+  users         User[]       @relation(fields: [userIds], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Permission {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  displayName String
+  description String?
+  roleIds     String[] @db.ObjectId
+  roles       Role[]   @relation(fields: [roleIds], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─────────────────────────── Branches ───────────────────────────
+
+model Branch {
+  id                          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                        String
+  code                        String?  @unique
+  address                     String?
+  phone                       String?
+  isMain                      Boolean  @default(false)
+  isActive                    Boolean  @default(true)
+  stockDistributionPercentage Float    @default(0)
+  ownerId                     String?  @db.ObjectId
+  owner                       User?    @relation("BranchOwner", fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  users          User[]               @relation("UserBranch")
+  branchStocks   ProductBranchStock[]
+  productBatches ProductBatch[]
+  sales          Sale[]
+}
+
+// ─────────────────────────── Catalog / Inventory ───────────────────────────
+
+model Category {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  sku             String   @unique
+  // Not @unique: MongoDB unique indexes treat missing values as duplicates,
+  // which would allow only one product without a barcode.
+  barcode         String?
+  costPrice       Float?
+  sellingPrice    Float
+  quantityInStock Int      @default(0)
+  totalCost       Float    @default(0)
+  reorderLevel    Int      @default(10)
+  categoryId      String   @db.ObjectId
+  category        Category @relation(fields: [categoryId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  saleItems      SaleItem[]
+  branchStocks   ProductBranchStock[]
+  batches        ProductBatch[]
+  stockMovements StockMovement[]
+  poItems        PurchaseOrderItem[]
+  cartItems      CartItem[]
+  invoiceItems   InvoiceItem[]
+  predictions    InventoryPrediction[]
+  predictionLogs PredictionLog[]
+
+  @@index([categoryId])
+  @@index([barcode])
+}
+
+model ProductBranchStock {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId         String   @db.ObjectId
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId          String   @db.ObjectId
+  branch            Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  quantityInStock   Int      @default(0)
+  initialAllocation Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([productId, branchId])
+  @@index([branchId])
+}
+
+model ProductBatch {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  productId   String    @db.ObjectId
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId    String    @db.ObjectId
+  branch      Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  batchNumber String?
+  expiryDate  DateTime?
+  quantity    Int       @default(0)
+  costPrice   Float?
+  receivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([productId, branchId])
+  @@index([expiryDate])
+}
+
+enum StockMovementType {
+  purchase
+  sale
+  adjustment
+  damage
+  return
+  transfer
+  in
+  out
+}
+
+model StockMovement {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  productId    String            @db.ObjectId
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId     String?           @db.ObjectId
+  fromBranchId String?           @db.ObjectId
+  type         StockMovementType
+  quantity     Int
+  notes        String?
+  userId       String            @db.ObjectId
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([productId, createdAt])
+}
+
+// ─────────────────────────── Suppliers / Purchasing ───────────────────────────
+
+model Supplier {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  description   String?
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+  payments       SupplierPayment[]
+}
+
+enum PurchaseOrderStatus {
+  draft
+  pending
+  received
+  partial
+  cancelled
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(auto()) @map("_id") @db.ObjectId
+  poNumber             String              @unique
+  supplierId           String?             @db.ObjectId
+  supplier             Supplier?           @relation(fields: [supplierId], references: [id])
+  supplierName         String?
+  status               PurchaseOrderStatus @default(draft)
+  orderDate            DateTime
+  expectedDeliveryDate DateTime?
+  receivedDate         DateTime?
+  totalCost            Float               @default(0)
+  notes                String?
+  createdById          String              @db.ObjectId
+  receivedById         String?             @db.ObjectId
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  items PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(auto()) @map("_id") @db.ObjectId
+  purchaseOrderId  String        @db.ObjectId
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId        String        @db.ObjectId
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantityOrdered  Int
+  quantityReceived Int           @default(0)
+  quantityDamaged  Int           @default(0)
+  unitCost         Float
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([purchaseOrderId, productId])
+}
+
+enum SupplierPaymentType {
+  full
+  partial
+  advance
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+  cheque
+  mpesa
+  card
+  credit
+}
+
+model SupplierPayment {
+  id              String              @id @default(auto()) @map("_id") @db.ObjectId
+  supplierId      String              @db.ObjectId
+  supplier        Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchaseOrderId String?             @db.ObjectId
+  type            SupplierPaymentType @default(partial)
+  amount          Float
+  paymentMethod   PaymentMethod       @default(cash)
+  paymentDate     DateTime
+  referenceNumber String?
+  notes           String?
+  recordedById    String              @db.ObjectId
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([supplierId])
+}
+
+// ─────────────────────────── Customers / Sales ───────────────────────────
+
+enum CustomerType {
+  walk_in
+  registered
+}
+
+model Customer {
+  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  phone                String?      @unique
+  email                String?
+  address              String?
+  customerType         CustomerType @default(walk_in)
+  canBuyOnCredit       Boolean      @default(false)
+  creditLimit          Float        @default(0)
+  currentCreditBalance Float        @default(0)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  sales    Sale[]
+  invoices Invoice[]
+  loans    Loan[]
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+  refunded
+}
+
+enum DeliveryStatus {
+  pending
+  picked_up
+  in_transit
+  delivered
+  failed
+}
+
+model Sale {
+  id                   String         @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNumber        String         @unique
+  cashierId            String         @db.ObjectId
+  cashier              User           @relation("SaleCashier", fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId             String?        @db.ObjectId
+  branch               Branch?        @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId           String?        @db.ObjectId
+  customer             Customer?      @relation(fields: [customerId], references: [id])
+  promotionId          String?        @db.ObjectId
+  promotion            Promotion?     @relation(fields: [promotionId], references: [id])
+  status               SaleStatus     @default(completed)
+  subtotal             Float
+  taxAmount            Float          @default(0)
+  discountAmount       Float          @default(0)
+  tradeInAmount        Float          @default(0)
+  totalAmount          Float
+  primaryPaymentMethod PaymentMethod  @default(cash)
+  cashPaid             Float          @default(0)
+  mpesaPaid            Float          @default(0)
+  cardPaid             Float          @default(0)
+  changeAmount         Float          @default(0)
+  notes                String?
+  shiftId              String?        @db.ObjectId
+  shift                Shift?         @relation(fields: [shiftId], references: [id])
+  // Delivery fields
+  deliveryStatus       DeliveryStatus @default(pending)
+  deliveryNotes        String?
+  deliveryDate         DateTime?
+  pickedUpAt           DateTime?
+  deliveredAt          DateTime?
+  deliveryProof        String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  items         SaleItem[]
+  mpesaPayments MpesaTransaction[]
+  returns       Return[]
+  tradeIns      TradeIn[]
+  invoice       Invoice[]
+
+  @@index([cashierId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model SaleItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  saleId          String   @db.ObjectId
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId       String   @db.ObjectId
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity        Int
+  unitPrice       Float
+  lineTotal       Float
+  discountPerItem Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model TradeIn {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  saleId     String   @db.ObjectId
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  modelName  String
+  imeiSerial String?
+  value      Float
+  condition  String?
+  productId  String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum ReturnStatus {
+  pending
+  approved
+  rejected
+  processed
+}
+
+model Return {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  saleId          String       @db.ObjectId
+  sale            Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  returnReference String       @unique
+  status          ReturnStatus @default(pending)
+  refundAmount    Float
+  refundMethod    PaymentMethod @default(cash)
+  reason          String?
+  requestedById   String       @db.ObjectId
+  approvedById    String?      @db.ObjectId
+  approvedAt      DateTime?
+  processedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  items ReturnItem[]
+}
+
+model ReturnItem {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  returnId      String   @db.ObjectId
+  return        Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  productId     String   @db.ObjectId
+  quantity      Int
+  refundPerItem Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─────────────────────────── M-Pesa ───────────────────────────
+
+enum MpesaStatus {
+  initiated
+  pending
+  confirmed
+  failed
+  cancelled
+}
+
+model MpesaTransaction {
+  id                 String      @id @default(auto()) @map("_id") @db.ObjectId
+  merchantRequestId  String?
+  checkoutRequestId  String?
+  phoneNumber        String
+  amount             Float
+  accountReference   String?
+  transactionDesc    String?
+  status             MpesaStatus @default(pending)
+  resultCode         String?
+  resultDesc         String?
+  mpesaReceiptNumber String?
+  transactionCode    String?
+  transactionDate    DateTime?
+  saleId             String?     @db.ObjectId
+  sale               Sale?       @relation(fields: [saleId], references: [id])
+  userId             String?     @db.ObjectId
+  user               User?       @relation(fields: [userId], references: [id])
+  responseData       Json?
+  confirmedAt        DateTime?
+  failedAt           DateTime?
+  errorMessage       String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([checkoutRequestId])
+  @@index([status])
+  @@index([phoneNumber, createdAt])
+}
+
+// ─────────────────────────── Shifts ───────────────────────────
+
+enum ShiftStatus {
+  open
+  closed
+  discrepancy
+}
+
+model Shift {
+  id                  String      @id @default(auto()) @map("_id") @db.ObjectId
+  cashierId           String      @db.ObjectId
+  cashier             User        @relation("ShiftCashier", fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  openedAt            DateTime
+  closedAt            DateTime?
+  status              ShiftStatus @default(open)
+  openingCash         Float
+  openingNotes        String?
+  closingCashCounted  Float?
+  closingNotes        String?
+  totalCashSales      Float       @default(0)
+  totalMpesaSales     Float       @default(0)
+  totalCardSales      Float       @default(0)
+  totalRefunds        Float       @default(0)
+  expectedClosingCash Float?
+  cashShortageOverage Float?
+  openedById          String      @db.ObjectId
+  closedById          String?     @db.ObjectId
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  sales Sale[]
+
+  @@index([cashierId])
+  @@index([status])
+}
+
+// ─────────────────────────── Finance ───────────────────────────
+
+model ExpenseCategory {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  description String?
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum ExpenseStatus {
+  pending
+  approved
+  rejected
+}
+
+model Expense {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  categoryId      String          @db.ObjectId
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryName    String?
+  amount          Float
+  description     String
+  expenseDate     DateTime
+  paymentMethod   PaymentMethod   @default(cash)
+  referenceNumber String?
+  status          ExpenseStatus   @default(pending)
+  recordedById    String          @db.ObjectId
+  recordedBy      User            @relation("ExpenseRecorder", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedById    String?         @db.ObjectId
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([expenseDate])
+  @@index([status])
+}
+
+model OtherIncome {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  source       String
+  amount       Float
+  description  String?
+  incomeDate   DateTime
+  recordedById String   @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([incomeDate])
+}
+
+// ─────────────────────────── Invoices ───────────────────────────
+
+enum InvoiceStatus {
+  draft
+  sent
+  paid
+  partial
+  overdue
+  cancelled
+}
+
+model Invoice {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber  String        @unique
+  customerId     String        @db.ObjectId
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  saleId         String?       @db.ObjectId
+  sale           Sale?         @relation(fields: [saleId], references: [id])
+  issueDate      DateTime
+  dueDate        DateTime
+  status         InvoiceStatus @default(draft)
+  subtotal       Float
+  taxAmount      Float         @default(0)
+  discountAmount Float         @default(0)
+  totalAmount    Float
+  amountPaid     Float         @default(0)
+  balanceDue     Float
+  paymentTerms   String?
+  notes          String?
+  createdById    String        @db.ObjectId
+  createdBy      User          @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sentAt         DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items    InvoiceItem[]
+  payments InvoicePayment[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId       String   @db.ObjectId
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId       String?  @db.ObjectId
+  product         Product? @relation(fields: [productId], references: [id])
+  description     String
+  quantity        Int
+  unitPrice       Float
+  lineTotal       Float
+  discountPerItem Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model InvoicePayment {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceId       String   @db.ObjectId
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentDate     DateTime
+  amount          Float
+  paymentMethod   String
+  referenceNumber String?
+  notes           String?
+  recordedById    String?  @db.ObjectId
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────────── Loans ───────────────────────────
+
+model Loan {
+  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  customerId         String        @db.ObjectId
+  customer           Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId             String        @db.ObjectId
+  user               User          @relation(fields: [userId], references: [id])
+  loanNumber         String        @unique
+  productDescription String
+  totalAmount        Float
+  amountPaid         Float         @default(0)
+  interestRate       Float?
+  loanDate           DateTime
+  dueDate            DateTime
+  status             String        @default("active")
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  payments LoanPayment[]
+
+  @@index([status])
+  @@index([dueDate])
+}
+
+model LoanPayment {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  loanId          String   @db.ObjectId
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount          Float
+  paymentMethod   String   @default("cash")
+  paymentDate     DateTime
+  referenceNumber String?
+  notes           String?
+  userId          String   @db.ObjectId
+  user            User     @relation(fields: [userId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────────── Promotions / Cart / Delivery ───────────────────────────
+
+enum PromotionType {
+  fixed
+  percentage
+}
+
+model Promotion {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  code      String?       @unique
+  type      PromotionType @default(fixed)
+  value     Float
+  minSpend  Float         @default(0)
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  sales Sale[]
+}
+
+model CartItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String?
+  productId String   @db.ObjectId
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+}
+
+model DeliveryOrder {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber     String   @unique
+  saleId          String?  @db.ObjectId
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  deliveryAddress String
+  totalAmount     Float
+  paymentMethod   String?
+  status          String   @default("pending")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────────── System / Audit / AI ───────────────────────────
+
+model Setting {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  value       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String?  @db.ObjectId
+  user          User?    @relation(fields: [userId], references: [id])
+  event         String // created, updated, deleted, login, logout, failed_login
+  auditableType String?
+  auditableId   String?
+  oldValues     Json?
+  newValues     Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([auditableType, auditableId])
+  @@index([event])
+  @@index([createdAt])
+}
+
+model InventoryPrediction {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  productId        String   @db.ObjectId
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  predictionType   String
+  predictionData   Json
+  confidenceScore  Float
+  predictedForDate DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([productId, predictionType])
+}
+
+model PredictionLog {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  productId      String    @db.ObjectId
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  predictionType String
+  predictedValue Float
+  actualValue    Float?
+  accuracyScore  Float?
+  predictionDate DateTime
+  actualDate     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([productId, predictionType])
+>>>>>>> e44a6e2 (Initial snapshot before TypeScript migration)
+}

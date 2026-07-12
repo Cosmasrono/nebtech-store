@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
+}
+
+@theme {
+  /* CareFlow's clinical palette: Tailwind's teal deepened toward pine, so the
+     brand reads calm and premium rather than neon. */
+  --color-teal-50: #f0f9f7;
+  --color-teal-600: #0d7d72;
+  --color-teal-700: #0b655d;
+  --color-teal-800: #0b4f49;
+  --color-teal-900: #0c403c;
+  --color-teal-950: #042f2b;
+}
+
+body {
+  background: #f3f8f7;
+  color: #10201d;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: #99f6e4;
+  color: #042f2b;
+}
