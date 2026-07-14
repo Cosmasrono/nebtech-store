@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret");
+const rawSecret = process.env.AUTH_SECRET;
+if (!rawSecret || rawSecret.length < 32 || rawSecret === "change-me-to-a-long-random-string") {
+  throw new Error(
+    "AUTH_SECRET must be set to a random string of 32+ characters. Generate one with: openssl rand -base64 48"
+  );
+}
+const SECRET = new TextEncoder().encode(rawSecret);
 const PUBLIC_PATHS = ["/login", "/register", "/system/unavailable", "/system/subscription-expired"];
 
 export async function middleware(req) {

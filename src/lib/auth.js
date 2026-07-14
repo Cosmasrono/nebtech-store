@@ -3,7 +3,13 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
 
-const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret");
+const rawSecret = process.env.AUTH_SECRET;
+if (!rawSecret || rawSecret.length < 32 || rawSecret === "change-me-to-a-long-random-string") {
+  throw new Error(
+    "AUTH_SECRET must be set to a random string of 32+ characters. Generate one with: openssl rand -base64 48"
+  );
+}
+const SECRET = new TextEncoder().encode(rawSecret);
 const COOKIE = "nebtech_session";
 const MAX_AGE = 60 * 60 * 12; // 12 hours
 
@@ -75,8 +81,29 @@ export async function getAuthUser() {
   return user;
 }
 
+function normalizeRoleName(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function roleMatches(grantedRoleName, requiredRoleName) {
+  const granted = normalizeRoleName(grantedRoleName);
+  const required = normalizeRoleName(requiredRoleName);
+
+  if (!granted || !required) return false;
+  if (granted === required) return true;
+
+  // Treat common admin aliases as equivalent to top-level admin roles.
+  if (["admin", "superadmin", "super_admin"].includes(granted) && ["super_admin", "owner"].includes(required)) {
+    return true;
+  }
+
+  return false;
+}
+
 export function userHasRole(user, ...names) {
-  return (user.roles || []).some((r) => names.includes(r.name));
+  return (user.roles || []).some((r) =>
+    names.some((name) => roleMatches(r.name, name))
+  );
 }
 
 export function userCan(user, permission) {

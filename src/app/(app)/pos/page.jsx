@@ -319,7 +319,7 @@ function PaymentModal({ total, onClose, onConfirm }) {
       const s = await fetch(`/api/mpesa/status/${txnId}`).then((r) => r.json());
       if (s.data?.status === "confirmed") {
         setMpesaStatus(`Paid — ${s.data.mpesaReceiptNumber || "confirmed"}`);
-        await onConfirm({ primaryPaymentMethod: "mpesa", mpesaPaid: total });
+        await onConfirm({ primaryPaymentMethod: "mpesa", mpesaPaid: total, customerPhone: phone });
         setBusy(false);
         return;
       }

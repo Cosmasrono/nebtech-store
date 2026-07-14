@@ -20,9 +20,43 @@ export async function POST(req) {
   if (!b.customerId || !Array.isArray(b.items) || !b.items.length) {
     return Response.json({ message: "customerId and items are required." }, { status: 422 });
   }
-  const subtotal = b.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice) - Number(i.discountPerItem || 0), 0);
-  const taxAmount = Number(b.taxAmount || 0);
-  const discountAmount = Number(b.discountAmount || 0);
+
+  // Catalog products are always priced from the DB; only free-form (service) lines accept a manual price.
+  const productIds = [...new Set(b.items.map((i) => i.productId).filter(Boolean))];
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  const items = [];
+  for (const raw of b.items) {
+    const quantity = Number(raw.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      return Response.json({ message: "Each item needs a positive whole-number quantity." }, { status: 422 });
+    }
+    let unitPrice;
+    if (raw.productId) {
+      const product = productById.get(raw.productId);
+      if (!product) return Response.json({ message: "Unknown product in invoice items." }, { status: 422 });
+      unitPrice = product.sellingPrice;
+    } else {
+      unitPrice = Number(raw.unitPrice);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        return Response.json({ message: "Each item needs a valid unit price." }, { status: 422 });
+      }
+    }
+    const discountPerItem = Math.min(unitPrice * quantity, Math.max(0, Number(raw.discountPerItem) || 0));
+    items.push({
+      productId: raw.productId || null,
+      description: raw.description,
+      quantity,
+      unitPrice,
+      lineTotal: unitPrice * quantity - discountPerItem,
+      discountPerItem,
+    });
+  }
+
+  const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
+  const taxAmount = Math.max(0, Number(b.taxAmount) || 0);
+  const discountAmount = Math.min(subtotal + taxAmount, Math.max(0, Number(b.discountAmount) || 0));
   const totalAmount = subtotal + taxAmount - discountAmount;
 
   const invoice = await prisma.invoice.create({
@@ -40,16 +74,7 @@ export async function POST(req) {
       paymentTerms: b.paymentTerms || "Net 30",
       notes: b.notes || null,
       createdById: user.id,
-      items: {
-        create: b.items.map((i) => ({
-          productId: i.productId || null,
-          description: i.description,
-          quantity: Number(i.quantity),
-          unitPrice: Number(i.unitPrice),
-          lineTotal: Number(i.quantity) * Number(i.unitPrice) - Number(i.discountPerItem || 0),
-          discountPerItem: Number(i.discountPerItem || 0),
-        })),
-      },
+      items: { create: items },
     },
     include: { items: true },
   });

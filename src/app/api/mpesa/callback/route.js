@@ -4,15 +4,33 @@ import prisma from "@/lib/prisma";
 export async function POST(req) {
   const body = await req.json().catch(() => null);
   const cb = body?.Body?.stkCallback;
-  if (!cb) return Response.json({ ResultCode: 0, ResultDesc: "Accepted" });
+  if (!cb || typeof cb.CheckoutRequestID !== "string" || !cb.CheckoutRequestID) {
+    return Response.json({ ResultCode: 0, ResultDesc: "Accepted" });
+  }
 
+  // Only initiated transactions can transition; prevents replay/overwrite of settled ones.
   const txn = await prisma.mpesaTransaction.findFirst({
-    where: { checkoutRequestId: cb.CheckoutRequestID },
+    where: { checkoutRequestId: cb.CheckoutRequestID, status: "initiated" },
   });
   if (!txn) return Response.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
   if (cb.ResultCode === 0) {
     const meta = Object.fromEntries((cb.CallbackMetadata?.Item || []).map((i) => [i.Name, i.Value]));
+    const paidAmount = Number(meta.Amount);
+    if (!Number.isFinite(paidAmount) || paidAmount < Math.ceil(txn.amount)) {
+      await prisma.mpesaTransaction.update({
+        where: { id: txn.id },
+        data: {
+          status: "failed",
+          resultCode: String(cb.ResultCode),
+          resultDesc: cb.ResultDesc,
+          failedAt: new Date(),
+          errorMessage: `Amount mismatch: expected ${txn.amount}, callback reported ${meta.Amount}`,
+          responseData: body,
+        },
+      });
+      return Response.json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
     await prisma.mpesaTransaction.update({
       where: { id: txn.id },
       data: {
