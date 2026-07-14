@@ -1,13 +1,5 @@
-<<<<<<< HEAD
-// Prisma schema for the clinic system, backed by MongoDB.
-//
-// The models mirror the domain types in lib/types.ts. Status / type / priority
-// fields are stored as plain strings so the exact values the app already uses
-// (e.g. "awaiting-triage") carry over unchanged — no enum translation layer.
-=======
 // NebTech Store — Prisma schema for MongoDB
 // Ported from Laravel migrations. Money uses Float (Mongo connector has no Decimal).
->>>>>>> e44a6e2 (Initial snapshot before TypeScript migration)
 
 generator client {
   provider = "prisma-client-js"
@@ -18,156 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-<<<<<<< HEAD
-// --- Embedded (composite) types ------------------------------------------
-
-type Vitals {
-  weight        String
-  temperature   String
-  bloodPressure String
-}
-
-type Med {
-  id        String
-  name      String
-  dosage    String
-  frequency String
-  duration  String
-  dispensed Boolean
-}
-
-// One step of a visit's journey: when the visit entered each status. The
-// first event is reception check-in; the last (status "completed") closes it.
-type StageEvent {
-  status String
-  at     DateTime
-}
-
-// Recorded at the pharmacy POS when the visit is paid for and closed.
-type Payment {
-  amount    Float
-  method    String // cash | mpesa | card
-  reference String? // e.g. M-Pesa transaction code
-  paidAt    DateTime
-}
-
-// One line of a pharmacy sale: which catalog medicine, how many, at what price.
-type SaleItem {
-  medicineId String
-  name       String // denormalised so history survives catalog edits
-  quantity   Int
-  unitPrice  Float
-}
-
-// --- Models --------------------------------------------------------------
-
-// Every staff member (receptionist, nurse, doctor, lab/radiology tech,
-// pharmacist, admin) is a User. Doctors are simply users with role "doctor";
-// the doctor roster reception assigns to is `User where role = doctor`.
-model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  username     String   @unique
-  name         String
-  passwordHash String
-  role         String // admin | receptionist | nurse | doctor | lab | radiology | pharmacist
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-}
-
-model Patient {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  mrn            String   @unique
-  nationalId     String   @unique
-  firstName      String
-  lastName       String
-  gender         String
-  age            Int
-  phone          String
-  // The User who onboarded this patient. Receptionists only see their own;
-  // null (pre-existing records) is visible to everyone.
-  registeredById String?  @db.ObjectId
-  createdAt      DateTime @default(now())
-  visits         Visit[]
-}
-
-model Visit {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  patient          Patient  @relation(fields: [patientId], references: [id])
-  patientId        String   @db.ObjectId
-  vitals           Vitals
-  priority         String?
-  complaint        String   @default("")
-  assignedDoctorId String?    @db.ObjectId // references a User with role "doctor"
-  status           String
-  timeline         StageEvent[] // timestamped status history, check-in → completed
-  payment          Payment?
-  saleItems        SaleItem[] // what the pharmacy actually sold at checkout
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  orders           Order[]
-}
-
-// One Daraja STK push. Created when the pharmacist requests payment; settled
-// by the Daraja callback (when reachable) or by polling the query API.
-model MpesaTransaction {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  checkoutRequestId String   @unique
-  phone             String
-  amount            Float
-  status            String   @default("pending") // pending | success | failed
-  receipt           String? // MpesaReceiptNumber from the callback
-  resultDesc        String?
-  visitId           String?  @db.ObjectId
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-// The pharmacy's stock catalog. The pharmacist searches this at the POS.
-model Medicine {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  strength  String // e.g. "500mg", "20/120"
-  form      String // tablet | capsule | syrup | inhaler | cream | sachet
-  unitPrice Float
-  stock     Int      @default(0)
-  createdAt DateTime @default(now())
-}
-
-// A staff absence request: multi-day leave, or a short "excuse" of at most
-// two hours. Created by any staff member; approved or declined by an admin.
-model ActivityRequest {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String    @db.ObjectId
-  userName    String // denormalised so the admin list survives user edits
-  userRole    String
-  type        String // leave | excuse
-  reason      String
-  startDate   DateTime? // leave: first day away
-  endDate     DateTime? // leave: last day away
-  excuseDate  DateTime? // excuse: which day
-  excuseHours Float? // excuse: duration, capped at 2
-  excuseStart DateTime? // excuse: leaves at
-  excuseEnd   DateTime? // excuse: due back (start + hours) — active again after
-  status      String    @default("pending") // pending | approved | declined
-  decidedById String?   @db.ObjectId
-  decidedBy   String? // admin's name at decision time
-  decidedAt   DateTime?
-  createdAt   DateTime  @default(now())
-}
-
-model Order {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  visit        Visit     @relation(fields: [visitId], references: [id])
-  visitId      String    @db.ObjectId
-  type         String
-  title        String
-  instructions String?
-  status       String
-  result       String?
-  meds         Med[]
-  createdAt    DateTime  @default(now())
-  completedAt  DateTime?
-=======
 // ─────────────────────────── Auth / RBAC ───────────────────────────
 
 model User {
@@ -953,5 +795,4 @@ model PredictionLog {
   updatedAt      DateTime  @updatedAt
 
   @@index([productId, predictionType])
->>>>>>> e44a6e2 (Initial snapshot before TypeScript migration)
 }
