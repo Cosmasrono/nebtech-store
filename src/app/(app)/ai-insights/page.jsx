@@ -44,7 +44,7 @@ export default function AiInsightsPage() {
         <div>
           <h1 className="text-xl font-bold">AI Insights</h1>
           <p className="text-sm text-slate-500">
-            Demand forecasts and reorder recommendations, powered by Claude.
+            Demand forecasts and reorder recommendations, powered by AI.
             {data?.generatedAt && <> Last generated {new Date(data.generatedAt).toLocaleString()}.</>}
           </p>
         </div>
@@ -59,7 +59,7 @@ export default function AiInsightsPage() {
 
       {generating && (
         <div className="card p-4 text-sm text-slate-500">
-          Claude is analyzing your sales history and stock levels. This can take a minute or two…
+          The AI is analyzing your sales history and stock levels. This can take a minute or two…
         </div>
       )}
 

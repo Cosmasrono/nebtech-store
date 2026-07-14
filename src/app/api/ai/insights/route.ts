@@ -1,9 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
 const PREDICTION_TYPE = "demand_forecast";
 const MAX_PRODUCTS = 40;
+
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 type StockoutRisk = "none" | "low" | "medium" | "high";
 
@@ -21,40 +23,21 @@ interface InsightsResult {
   predictions: ProductPrediction[];
 }
 
-const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["summary", "predictions"],
-  properties: {
-    summary: {
-      type: "string",
-      description: "2-4 sentence overview of the inventory situation and the most urgent actions.",
-    },
-    predictions: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "productId",
-          "predictedDemandNext30Days",
-          "recommendedReorderQuantity",
-          "stockoutRisk",
-          "confidence",
-          "reasoning",
-        ],
-        properties: {
-          productId: { type: "string", description: "The product id exactly as given in the input." },
-          predictedDemandNext30Days: { type: "number", description: "Forecast units sold over the next 30 days." },
-          recommendedReorderQuantity: { type: "integer", description: "Units to reorder now; 0 if none needed." },
-          stockoutRisk: { type: "string", enum: ["none", "low", "medium", "high"] },
-          confidence: { type: "number", description: "0 to 1." },
-          reasoning: { type: "string", description: "One sentence explaining the forecast." },
-        },
-      },
-    },
-  },
-} as const;
+const OUTPUT_FORMAT_INSTRUCTIONS = `Respond with a single JSON object only — no markdown, no commentary. Shape:
+{
+  "summary": "2-4 sentence overview of the inventory situation and the most urgent actions.",
+  "predictions": [
+    {
+      "productId": "the product id exactly as given in the input",
+      "predictedDemandNext30Days": <number, forecast units sold over the next 30 days>,
+      "recommendedReorderQuantity": <integer, units to reorder now; 0 if none needed>,
+      "stockoutRisk": "none" | "low" | "medium" | "high",
+      "confidence": <number between 0 and 1>,
+      "reasoning": "one sentence explaining the forecast"
+    }
+  ]
+}
+Include one prediction per input product.`;
 
 // GET — latest prediction per product + stored summary
 export async function GET() {
@@ -87,14 +70,14 @@ export async function GET() {
   });
 }
 
-// POST — generate fresh predictions with Claude
+// POST — generate fresh predictions with Groq
 export async function POST() {
   const { error } = await requireAuth("view_inventory_reports");
   if (error) return error;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     return Response.json(
-      { message: "AI is not configured. Set ANTHROPIC_API_KEY in .env and restart the server." },
+      { message: "AI is not configured. Set GROQ_API_KEY in .env and restart the server." },
       { status: 503 }
     );
   }
@@ -143,42 +126,55 @@ export async function POST() {
       `id=${p.id} | ${p.name} (${p.sku}) | category=${p.category?.name || "-"} | in_stock=${p.quantityInStock} | reorder_level=${p.reorderLevel} | sold_last_30d=${p.sold30} | sold_last_90d=${p.sold90} | price=${p.sellingPrice}`
   );
 
-  const client = new Anthropic();
-  let response: Anthropic.Message;
+  let text: string;
   try {
-    response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      system:
-        "You are an inventory analyst for a retail store. Forecast demand from the sales history provided and recommend reorder quantities. Be realistic: base forecasts on the 30/90-day sales trend, keep confidence low when history is thin, and recommend 0 reorder when stock comfortably covers forecast demand.",
-      messages: [
-        {
-          role: "user",
-          content: `Today is ${now.toISOString().slice(0, 10)}. Analyze these products and produce a demand forecast and reorder recommendation for each:\n\n${inputLines.join("\n")}`,
-        },
-      ],
-      output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
+    const res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0.2,
+        max_tokens: 8000,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an inventory analyst for a retail store. Forecast demand from the sales history provided and recommend reorder quantities. Be realistic: base forecasts on the 30/90-day sales trend, keep confidence low when history is thin, and recommend 0 reorder when stock comfortably covers forecast demand.\n\n" +
+              OUTPUT_FORMAT_INSTRUCTIONS,
+          },
+          {
+            role: "user",
+            content: `Today is ${now.toISOString().slice(0, 10)}. Analyze these products and produce a demand forecast and reorder recommendation for each, as JSON:\n\n${inputLines.join("\n")}`,
+          },
+        ],
+      }),
     });
+
+    if (res.status === 401) {
+      return Response.json({ message: "The GROQ_API_KEY is invalid. Check the key in .env." }, { status: 503 });
+    }
+    if (res.status === 429) {
+      return Response.json({ message: "The AI service is rate-limited. Try again in a minute." }, { status: 502 });
+    }
+    if (!res.ok) {
+      console.error("Groq request failed:", res.status, await res.text().catch(() => ""));
+      return Response.json({ message: "The AI request failed. Try again shortly." }, { status: 502 });
+    }
+
+    const body = await res.json();
+    text = body?.choices?.[0]?.message?.content ?? "";
   } catch (e) {
     console.error("AI insights request failed:", e);
-    if (e instanceof Anthropic.AuthenticationError) {
-      return Response.json({ message: "The ANTHROPIC_API_KEY is invalid. Check the key in .env." }, { status: 503 });
-    }
     return Response.json({ message: "The AI request failed. Try again shortly." }, { status: 502 });
   }
 
-  if (response.stop_reason === "refusal" || response.stop_reason === "max_tokens") {
-    return Response.json({ message: "The AI could not complete the analysis. Try again." }, { status: 502 });
-  }
-
-  const text = response.content.find(
-    (b): b is Anthropic.TextBlock => b.type === "text"
-  )?.text;
-
   let result: InsightsResult;
   try {
-    result = JSON.parse(text ?? "");
+    result = JSON.parse(text);
   } catch {
     return Response.json({ message: "The AI returned an unreadable response. Try again." }, { status: 502 });
   }
