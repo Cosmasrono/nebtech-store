@@ -105,6 +105,7 @@ model Product {
   // Not @unique: MongoDB unique indexes treat missing values as duplicates,
   // which would allow only one product without a barcode.
   barcode         String?
+  imei            String?
   costPrice       Float?
   sellingPrice    Float
   quantityInStock Int      @default(0)
@@ -128,6 +129,7 @@ model Product {
 
   @@index([categoryId])
   @@index([barcode])
+  @@index([imei])
 }
 
 model ProductBranchStock {

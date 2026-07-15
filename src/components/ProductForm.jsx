@@ -7,7 +7,7 @@ export default function ProductForm({ productId = null }) {
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
-    name: "", sku: "", barcode: "", categoryId: "", costPrice: "", sellingPrice: "",
+    name: "", sku: "", barcode: "", imei: "", categoryId: "", costPrice: "", sellingPrice: "",
     quantityInStock: 0, reorderLevel: 10, description: "", expiryDate: "", batchNumber: "", isActive: true,
   });
   const [error, setError] = useState("");
@@ -21,6 +21,7 @@ export default function ProductForm({ productId = null }) {
         const p = d.data;
         setForm((f) => ({
           ...f, name: p.name, sku: p.sku, barcode: p.barcode || "", categoryId: p.categoryId,
+          imei: p.imei || "",
           costPrice: p.costPrice ?? "", sellingPrice: p.sellingPrice, quantityInStock: p.quantityInStock,
           reorderLevel: p.reorderLevel, description: p.description || "", isActive: p.isActive,
         }));
@@ -68,6 +69,7 @@ export default function ProductForm({ productId = null }) {
         </div>
         <div><label className="label">SKU *</label><input className="input" required value={form.sku} onChange={set("sku")} /></div>
         <div><label className="label">Barcode</label><input className="input" value={form.barcode} onChange={set("barcode")} /></div>
+        <div><label className="label">IMEI (phones optional)</label><input className="input" value={form.imei} onChange={set("imei")} /></div>
         <div><label className="label">Cost price (KSh)</label><input type="number" step="0.01" className="input" value={form.costPrice} onChange={set("costPrice")} /></div>
         <div><label className="label">Selling price (KSh) *</label><input type="number" step="0.01" className="input" required value={form.sellingPrice} onChange={set("sellingPrice")} /></div>
         {!productId && (

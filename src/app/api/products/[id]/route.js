@@ -23,7 +23,7 @@ export async function PUT(req, { params }) {
   if (!old) return Response.json({ message: "Not found." }, { status: 404 });
 
   const data = {};
-  for (const k of ["name", "description", "sku", "barcode", "categoryId"]) if (body[k] !== undefined) data[k] = body[k];
+  for (const k of ["name", "description", "sku", "barcode", "imei", "categoryId"]) if (body[k] !== undefined) data[k] = body[k];
   for (const k of ["costPrice", "sellingPrice"]) if (body[k] !== undefined) data[k] = body[k] == null ? null : Number(body[k]);
   for (const k of ["quantityInStock", "reorderLevel"]) if (body[k] !== undefined) data[k] = Number(body[k]);
   if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);

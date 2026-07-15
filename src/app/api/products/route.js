@@ -18,6 +18,7 @@ export async function GET(req) {
         { name: { contains: q, mode: "insensitive" } },
         { sku: { contains: q, mode: "insensitive" } },
         { barcode: { contains: q, mode: "insensitive" } },
+        { imei: { contains: q, mode: "insensitive" } },
       ],
     }),
     ...(categoryId && { categoryId }),
@@ -42,7 +43,7 @@ export async function POST(req) {
   if (error) return error;
 
   const body = await req.json();
-  const { name, sku, barcode, costPrice, sellingPrice, quantityInStock = 0, reorderLevel = 10, categoryId, description, expiryDate, batchNumber } = body;
+  const { name, sku, barcode, imei, costPrice, sellingPrice, quantityInStock = 0, reorderLevel = 10, categoryId, description, expiryDate, batchNumber } = body;
   if (!name || !sku || !sellingPrice || !categoryId) {
     return Response.json({ message: "name, sku, sellingPrice and categoryId are required." }, { status: 422 });
   }
@@ -53,6 +54,7 @@ export async function POST(req) {
         name,
         sku,
         barcode: barcode || null,
+        imei: imei || null,
         description: description || null,
         costPrice: costPrice != null ? Number(costPrice) : null,
         sellingPrice: Number(sellingPrice),
