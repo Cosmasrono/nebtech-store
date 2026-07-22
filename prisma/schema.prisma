@@ -68,8 +68,10 @@ model Permission {
 
 model Branch {
   id                          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name                        String
-  code                        String?  @unique
+  name                        String   @unique
+  // Unique branch identifier. Required so the MongoDB unique index doesn't
+  // collide on missing values. Stored uppercase (e.g. "MAIN", "NRB01").
+  code                        String   @unique
   address                     String?
   phone                       String?
   isMain                      Boolean  @default(false)
@@ -97,6 +99,21 @@ model Category {
   updatedAt   DateTime  @updatedAt
 }
 
+enum DosageForm {
+  tablet
+  capsule
+  syrup
+  suspension
+  injection
+  cream
+  ointment
+  drops
+  inhaler
+  sachet
+  suppository
+  other
+}
+
 model Product {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
@@ -105,7 +122,8 @@ model Product {
   // Not @unique: MongoDB unique indexes treat missing values as duplicates,
   // which would allow only one product without a barcode.
   barcode         String?
-  imei            String?
+  // imei disabled for pharmacy POS — kept commented in case phones are re-added later
+  // imei            String?
   costPrice       Float?
   sellingPrice    Float
   quantityInStock Int      @default(0)
@@ -114,6 +132,16 @@ model Product {
   categoryId      String   @db.ObjectId
   category        Category @relation(fields: [categoryId], references: [id])
   isActive        Boolean  @default(true)
+  // Pharmacy fields. Grouping brand variants by genericName lets the POS
+  // show "Panadol / Hedex / Generic" side-by-side when the cashier types
+  // "paracetamol".
+  genericName          String?
+  brandName            String?
+  strength             String?
+  dosageForm           DosageForm?
+  packSize             String?
+  manufacturer         String?
+  prescriptionRequired Boolean     @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -129,7 +157,8 @@ model Product {
 
   @@index([categoryId])
   @@index([barcode])
-  @@index([imei])
+  // @@index([imei])
+  @@index([genericName])
 }
 
 model ProductBranchStock {
@@ -230,6 +259,9 @@ model PurchaseOrder {
   expectedDeliveryDate DateTime?
   receivedDate         DateTime?
   totalCost            Float               @default(0)
+  // [{branchId, percentage}] — PO-wide split applied at /receive.
+  // Sum must be ~100. Null falls back to main-branch behavior.
+  allocations          Json?
   notes                String?
   createdById          String              @db.ObjectId
   receivedById         String?             @db.ObjectId
@@ -452,6 +484,7 @@ enum MpesaStatus {
   confirmed
   failed
   cancelled
+  reversed
 }
 
 model MpesaTransaction {

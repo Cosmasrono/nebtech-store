@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { Loading } from "@/components/ui";
 
 const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
@@ -12,7 +13,14 @@ export default function SaleDetailPage({ params }) {
     fetch(`/api/sales/${id}`).then((r) => r.json()).then((d) => setSale(d.data));
   }, [id]);
 
-  if (!sale) return <div className="text-slate-500">Loading…</div>;
+  useEffect(() => {
+    if (sale && new URLSearchParams(window.location.search).get("print") === "1") {
+      const t = setTimeout(() => window.print(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [sale]);
+
+  if (!sale) return <Loading />;
 
   return (
     <div className="max-w-2xl space-y-4">

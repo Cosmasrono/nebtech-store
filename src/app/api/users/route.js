@@ -17,8 +17,16 @@ export async function POST(req) {
   if (error) return error;
   const b = await req.json();
   if (!b.name || !b.email || !b.password) return Response.json({ message: "name, email and password are required." }, { status: 422 });
-  const exists = await prisma.user.findUnique({ where: { email: b.email.toLowerCase() } });
-  if (exists) return Response.json({ message: "Email already taken." }, { status: 422 });
+  const exists = await prisma.user.findUnique({
+    where: { email: b.email.toLowerCase() },
+    include: { branch: { select: { name: true } } },
+  });
+  if (exists) {
+    const message = exists.branch
+      ? `This user already belongs to ${exists.branch.name}. A user can only be registered in one branch.`
+      : "This email is already registered.";
+    return Response.json({ message }, { status: 422 });
+  }
 
   const user = await prisma.user.create({
     data: {

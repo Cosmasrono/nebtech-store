@@ -23,7 +23,9 @@ export async function PUT(req, { params }) {
   if (!old) return Response.json({ message: "Not found." }, { status: 404 });
 
   const data = {};
-  for (const k of ["name", "description", "sku", "barcode", "imei", "categoryId"]) if (body[k] !== undefined) data[k] = body[k];
+  for (const k of ["name", "description", "sku", "barcode", /* "imei", */ "categoryId",
+    "genericName", "brandName", "strength", "dosageForm", "packSize", "manufacturer"]) if (body[k] !== undefined) data[k] = body[k];
+  if (body.prescriptionRequired !== undefined) data.prescriptionRequired = !!body.prescriptionRequired;
   for (const k of ["costPrice", "sellingPrice"]) if (body[k] !== undefined) data[k] = body[k] == null ? null : Number(body[k]);
   for (const k of ["quantityInStock", "reorderLevel"]) if (body[k] !== undefined) data[k] = Number(body[k]);
   if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
@@ -40,7 +42,12 @@ export async function DELETE(req, { params }) {
   const { user, error } = await requireAuth("manage_products");
   if (error) return error;
   const { id } = await params;
+
+  const product = await prisma.product.findUnique({ where: { id } });
+  if (!product) return Response.json({ message: "Not found." }, { status: 404 });
+
   await prisma.product.update({ where: { id }, data: { isActive: false } });
-  await audit({ userId: user.id, event: "deleted", type: "Product", auditableId: id, req });
+  await prisma.productBranchStock.deleteMany({ where: { productId: id } });
+  await audit({ userId: user.id, event: "deactivated", type: "Product", auditableId: id, req });
   return Response.json({ message: "Product deactivated." });
 }

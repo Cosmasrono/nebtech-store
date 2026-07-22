@@ -1,61 +1,137 @@
-// M-Pesa Daraja STK Push — port of App\Services\MpesaService
-const BASE = {
-  sandbox: "https://sandbox.safaricom.co.ke",
-  production: "https://api.safaricom.co.ke",
-};
+// PayHero client — pattern mirrors CareFlow's working implementation.
+// Kept filename & existing exports (stkPush, normalizePhone) for import compat.
+
+const PAYHERO_BASE = "https://backend.payhero.co.ke/api/v2";
 
 function baseUrl() {
-  return BASE[process.env.MPESA_ENV === "production" ? "production" : "sandbox"];
+  return (process.env.PAYHERO_BASE_URL || PAYHERO_BASE).replace(/\/$/, "");
 }
 
-export async function getAccessToken() {
-  const key = process.env.MPESA_CONSUMER_KEY;
-  const secret = process.env.MPESA_CONSUMER_SECRET;
-  const auth = Buffer.from(`${key}:${secret}`).toString("base64");
-  const res = await fetch(`${baseUrl()}/oauth/v1/generate?grant_type=client_credentials`, {
-    headers: { Authorization: `Basic ${auth}` },
+function basicAuth() {
+  const raw = process.env.PAYHERO_AUTH_TOKEN?.trim();
+  if (raw) return raw.startsWith("Basic ") ? raw : `Basic ${raw}`;
+  const u = process.env.PAYHERO_API_USERNAME?.trim() || process.env.PAYHERO_USERNAME?.trim() || "";
+  const p = process.env.PAYHERO_API_PASSWORD?.trim() || process.env.PAYHERO_PASSWORD?.trim() || "";
+  if (!u || !p) return "";
+  return "Basic " + Buffer.from(`${u}:${p}`).toString("base64");
+}
+
+function channelId() {
+  const v = Number(process.env.PAYHERO_CHANNEL_ID);
+  return Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+}
+
+function callbackUrl() {
+  return (
+    process.env.PAYHERO_CALLBACK_URL?.trim() ||
+    (process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/api/mpesa/callback` : undefined)
+  );
+}
+
+export function mpesaConfigured() {
+  return Boolean(basicAuth() && channelId());
+}
+
+export function normalizePhone(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  const n = digits.startsWith("254")
+    ? digits
+    : digits.startsWith("0")
+      ? `254${digits.slice(1)}`
+      : digits.startsWith("7") || digits.startsWith("1")
+        ? `254${digits}`
+        : digits;
+  return n;
+}
+
+export function isValidPhone(raw) {
+  return /^254[71]\d{8}$/.test(normalizePhone(raw));
+}
+
+function toLocalPhone(phone) {
+  return phone.startsWith("254") ? `0${phone.slice(3)}` : phone;
+}
+
+/**
+ * Send an STK push via PayHero. Generates its own externalReference and returns it
+ * so the caller can use it as the DB-side correlation key.
+ * Resolves to: { ok, externalReference, payheroReference, payheroCheckoutRequestId, error }
+ */
+export async function stkPush({ phone, amount, accountReference, description = "POS Payment" }) {
+  const auth = basicAuth();
+  const ch = channelId();
+  const cb = callbackUrl();
+  if (!auth || !ch) return { ok: false, error: "PayHero is not configured (set PAYHERO_API_USERNAME/PASSWORD and PAYHERO_CHANNEL_ID)." };
+
+  const externalReference = accountReference || `POS-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+  const res = await fetch(`${baseUrl()}/payments`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      amount: Math.max(1, Math.round(Number(amount))),
+      phone_number: toLocalPhone(normalizePhone(phone)),
+      channel_id: ch,
+      provider: "m-pesa",
+      external_reference: externalReference,
+      customer_name: description || "POS Customer",
+      callback_url: cb,
+    }),
     cache: "no-store",
   });
-  if (!res.ok) throw new Error(`M-Pesa auth failed: ${res.status}`);
-  const data = await res.json();
-  return data.access_token;
-}
 
-export function normalizePhone(phone) {
-  let p = String(phone).replace(/\D/g, "");
-  if (p.startsWith("0")) p = "254" + p.slice(1);
-  if (p.startsWith("7") || p.startsWith("1")) p = "254" + p;
-  return p;
-}
+  let body = {};
+  try { body = await res.json(); } catch { /* keep empty */ }
 
-export async function stkPush({ phone, amount, accountReference = "NebTechStore", description = "POS Payment" }) {
-  const token = await getAccessToken();
-  const shortCode = process.env.MPESA_SHORT_CODE;
-  const passkey = process.env.MPESA_PASSKEY;
-  const timestamp = new Date()
-    .toISOString()
-    .replace(/[-:TZ.]/g, "")
-    .slice(0, 14);
-  const password = Buffer.from(`${shortCode}${passkey}${timestamp}`).toString("base64");
+  if (res.ok && (body.success || String(body.status || "").toUpperCase() === "QUEUED")) {
+    return {
+      ok: true,
+      externalReference,
+      payheroReference: body.reference || null,
+      payheroCheckoutRequestId: body.CheckoutRequestID || null,
+      raw: body,
+    };
+  }
 
-  const body = {
-    BusinessShortCode: shortCode,
-    Password: password,
-    Timestamp: timestamp,
-    TransactionType: process.env.MPESA_TRANSACTION_TYPE || "CustomerPayBillOnline",
-    Amount: Math.ceil(Number(amount)),
-    PartyA: normalizePhone(phone),
-    PartyB: shortCode,
-    PhoneNumber: normalizePhone(phone),
-    CallBackURL: process.env.MPESA_CALLBACK_URL || `${process.env.APP_URL}/api/mpesa/callback`,
-    AccountReference: accountReference,
-    TransactionDesc: description,
+  console.error("[payhero] STK rejected", res.status, body);
+  return {
+    ok: false,
+    externalReference,
+    error: body.error_message || body.message || body.detail || `PayHero HTTP ${res.status}`,
+    raw: body,
   };
+}
 
-  const res = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+/**
+ * Query PayHero for the outcome of a transaction by its PayHero reference.
+ * Resolves to: { status: 'success'|'failed'|'pending', receipt?, detail? }
+ */
+export async function stkQuery(reference) {
+  const auth = basicAuth();
+  if (!auth) return { status: "pending" };
+
+  const url = new URL(`${baseUrl()}/transaction-status`);
+  url.searchParams.set("reference", reference);
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: auth },
+    cache: "no-store",
   });
-  return res.json();
+  let body = {};
+  try { body = await res.json(); } catch { /* keep empty */ }
+
+  const status = String(body.status || "").toUpperCase();
+
+  if (res.ok && status === "SUCCESS") {
+    return { status: "success", receipt: body.provider_reference || body.third_party_reference || body.MpesaReceiptNumber || null };
+  }
+  if (res.ok && status === "FAILED") {
+    return { status: "failed", detail: body.message || body.error_message || "Payment failed." };
+  }
+  if (res.ok && (!status || status === "QUEUED" || status === "PENDING")) {
+    return { status: "pending" };
+  }
+  if (res.status >= 500) return { status: "pending" }; // transient — keep polling
+  return { status: "failed", detail: body.error_message || body.message || `PayHero status HTTP ${res.status}` };
 }

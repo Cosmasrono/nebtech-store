@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export default function ProductForm({ productId = null }) {
   const router = useRouter();
   const [categories, setCategories] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [allocations, setAllocations] = useState({});
   const [form, setForm] = useState({
-    name: "", sku: "", barcode: "", imei: "", categoryId: "", costPrice: "", sellingPrice: "",
-    quantityInStock: 0, reorderLevel: 10, description: "", expiryDate: "", batchNumber: "", isActive: true,
+    name: "", sku: "", barcode: "", /* imei: "", */ categoryId: "", costPrice: "", sellingPrice: "",
+    reorderLevel: 10, description: "", expiryDate: "", batchNumber: "", isActive: true,
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -16,13 +18,16 @@ export default function ProductForm({ productId = null }) {
 
   useEffect(() => {
     fetch("/api/categories").then((r) => r.json()).then((d) => setCategories(d.data || []));
+    if (!productId) {
+      fetch("/api/branches").then((r) => r.json()).then((d) => setBranches((d.data || []).filter((b) => b.isActive)));
+    }
     if (productId) {
       fetch(`/api/products/${productId}`).then((r) => r.json()).then((d) => {
         const p = d.data;
         setForm((f) => ({
           ...f, name: p.name, sku: p.sku, barcode: p.barcode || "", categoryId: p.categoryId,
-          imei: p.imei || "",
-          costPrice: p.costPrice ?? "", sellingPrice: p.sellingPrice, quantityInStock: p.quantityInStock,
+          // imei: p.imei || "",
+          costPrice: p.costPrice ?? "", sellingPrice: p.sellingPrice,
           reorderLevel: p.reorderLevel, description: p.description || "", isActive: p.isActive,
         }));
       });
@@ -33,10 +38,13 @@ export default function ProductForm({ productId = null }) {
     e.preventDefault();
     setError("");
     setBusy(true);
+    const branchAllocations = Object.entries(allocations)
+      .map(([branchId, quantity]) => ({ branchId, quantity: Number(quantity) || 0 }))
+      .filter((a) => a.quantity > 0);
     const res = await fetch(productId ? `/api/products/${productId}` : "/api/products", {
       method: productId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(productId ? form : { ...form, branchAllocations }),
     });
     setBusy(false);
     if (res.ok) router.push("/products");
@@ -69,14 +77,11 @@ export default function ProductForm({ productId = null }) {
         </div>
         <div><label className="label">SKU *</label><input className="input" required value={form.sku} onChange={set("sku")} /></div>
         <div><label className="label">Barcode</label><input className="input" value={form.barcode} onChange={set("barcode")} /></div>
-        <div><label className="label">IMEI (phones optional)</label><input className="input" value={form.imei} onChange={set("imei")} /></div>
+        {/* <div><label className="label">IMEI (phones optional)</label><input className="input" value={form.imei} onChange={set("imei")} /></div> */}
         <div><label className="label">Cost price (KSh)</label><input type="number" step="0.01" className="input" value={form.costPrice} onChange={set("costPrice")} /></div>
         <div><label className="label">Selling price (KSh) *</label><input type="number" step="0.01" className="input" required value={form.sellingPrice} onChange={set("sellingPrice")} /></div>
         {!productId && (
-          <>
-            <div><label className="label">Opening stock</label><input type="number" className="input" value={form.quantityInStock} onChange={set("quantityInStock")} /></div>
-            <div><label className="label">Expiry date (optional)</label><input type="date" className="input" value={form.expiryDate} onChange={set("expiryDate")} /></div>
-          </>
+          <div><label className="label">Expiry date (optional)</label><input type="date" className="input" value={form.expiryDate} onChange={set("expiryDate")} /></div>
         )}
         <div><label className="label">Reorder level</label><input type="number" className="input" value={form.reorderLevel} onChange={set("reorderLevel")} /></div>
         <div className="flex items-end gap-2 pb-2">
@@ -85,6 +90,24 @@ export default function ProductForm({ productId = null }) {
         </div>
       </div>
       <div><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={set("description")} /></div>
+      {!productId && branches.length > 0 && (
+        <div className="border-t border-slate-100 pt-4">
+          <div className="label mb-2">Opening stock per branch</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {branches.map((b) => (
+              <div key={b.id}>
+                <label className="label">{b.name}{b.isMain ? " (Main)" : ""}</label>
+                <input type="number" min="0" className="input" placeholder="0"
+                  value={allocations[b.id] ?? ""}
+                  onChange={(e) => setAllocations({ ...allocations, [b.id]: e.target.value })} />
+              </div>
+            ))}
+          </div>
+          <div className="text-sm text-slate-500 mt-2">
+            Total opening stock: {Object.values(allocations).reduce((s, q) => s + (Number(q) || 0), 0)}
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
         <button className="btn-primary" disabled={busy}>{busy ? "Saving…" : productId ? "Save changes" : "Create product"}</button>
         <button type="button" className="btn-secondary" onClick={() => router.push("/products")}>Cancel</button>

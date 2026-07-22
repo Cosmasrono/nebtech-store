@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, fmt } from "@/components/ui";
+import { Alert, fmt, Loading } from "@/components/ui";
 
 export default function PoDetailPage({ params }) {
   const { id } = use(params);
@@ -14,7 +14,7 @@ export default function PoDetailPage({ params }) {
   const load = () => fetch(`/api/purchase-orders/${id}`).then((r) => r.json()).then((d) => setPo(d.data));
   useEffect(() => { load(); }, [id]); // eslint-disable-line
 
-  if (!po) return <div className="text-slate-500">Loading…</div>;
+  if (!po) return <Loading />;
 
   async function submitReceive() {
     const items = Object.entries(receive)
@@ -28,7 +28,7 @@ export default function PoDetailPage({ params }) {
     else setMsg({ ok: false, text: (await res.json()).message || "Receive failed." });
   }
 
-  const canReceive = po.status === "pending" || po.status === "partially_received";
+  const canReceive = po.status === "pending" || po.status === "partial" || po.status === "draft";
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -39,8 +39,8 @@ export default function PoDetailPage({ params }) {
       <Alert msg={msg} />
       <div className="card p-4 text-sm grid grid-cols-3 gap-4">
         <div><div className="text-slate-500">Supplier</div><div className="font-medium">{po.supplier?.name}</div></div>
-        <div><div className="text-slate-500">Expected</div><div className="font-medium">{po.expectedDate ? new Date(po.expectedDate).toLocaleDateString("en-KE") : "—"}</div></div>
-        <div><div className="text-slate-500">Total</div><div className="font-medium">{fmt(po.totalAmount)}</div></div>
+        <div><div className="text-slate-500">Expected</div><div className="font-medium">{po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString("en-KE") : "—"}</div></div>
+        <div><div className="text-slate-500">Total</div><div className="font-medium">{fmt(po.totalCost)}</div></div>
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full">

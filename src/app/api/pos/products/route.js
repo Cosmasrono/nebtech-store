@@ -10,6 +10,7 @@ export async function GET(req) {
   const products = await prisma.product.findMany({
     where: {
       isActive: true,
+      ...(user.branchId && { branchStocks: { some: { branchId: user.branchId } } }),
       ...(q && {
         OR: [
           { name: { contains: q, mode: "insensitive" } },

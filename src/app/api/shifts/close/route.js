@@ -13,11 +13,19 @@ export async function POST(req) {
   const counted = Number(closingCashCounted || 0);
   const diff = counted - expected;
 
+  const mpesaAgg = await prisma.mpesaTransaction.aggregate({
+    _sum: { amount: true },
+    where: { userId: user.id, status: "confirmed", confirmedAt: { gte: shift.openedAt } },
+  });
+  const mpesaConfirmed = mpesaAgg._sum.amount || 0;
+  const mpesaVariance = mpesaConfirmed - shift.totalMpesaSales;
+
+  const balanced = Math.abs(diff) <= 0.009 && Math.abs(mpesaVariance) <= 0.009;
   const closed = await prisma.shift.update({
     where: { id: shift.id },
     data: {
       closedAt: new Date(),
-      status: Math.abs(diff) > 0.009 ? "discrepancy" : "closed",
+      status: balanced ? "closed" : "discrepancy",
       closingCashCounted: counted,
       closingNotes: closingNotes || null,
       expectedClosingCash: expected,
@@ -25,5 +33,5 @@ export async function POST(req) {
       closedById: user.id,
     },
   });
-  return Response.json({ data: closed });
+  return Response.json({ data: { ...closed, mpesaConfirmedTotal: mpesaConfirmed, mpesaVariance } });
 }

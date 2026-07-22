@@ -1,12 +1,22 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getAuthUser, userHasRole } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import ToastProvider from "@/components/ToastProvider";
+import TopProgress from "@/components/TopProgress";
 
 export default async function AppLayout({ children }) {
-  const session = await getSession();
-  if (!session) redirect("/login");
+  const authUser = await getAuthUser();
+  if (!authUser) redirect("/login");
+  const session = {
+    name: authUser.name,
+    isAdmin: userHasRole(authUser, "owner", "super_admin"),
+    permissions: [...new Set(authUser.roles.flatMap((r) => (r.permissions || []).map((p) => p.name)))],
+  };
 
   return (
+    <ToastProvider>
+    <Suspense fallback={null}><TopProgress /></Suspense>
     <div className="min-h-screen">
       <Sidebar user={session} />
       <main className="pl-60 min-h-screen flex flex-col">
@@ -21,5 +31,6 @@ export default async function AppLayout({ children }) {
         </footer>
       </main>
     </div>
+    </ToastProvider>
   );
 }

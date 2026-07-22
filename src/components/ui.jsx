@@ -2,6 +2,27 @@
 
 export const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
+// Small circular spinner. Inherits currentColor, so wrap in text-<color>-* to tint.
+export function Spinner({ size = 16, className = "" }) {
+  return (
+    <span
+      role="status"
+      aria-label="Loading"
+      className={`inline-block animate-spin rounded-full border-2 border-current border-r-transparent align-[-2px] ${className}`}
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
+// Inline loading state for pages / cards. Replace bare "Loading…" strings with this.
+export function Loading({ label = "Loading…", className = "" }) {
+  return (
+    <div className={`flex items-center gap-2 text-slate-500 text-sm ${className}`}>
+      <Spinner /> <span>{label}</span>
+    </div>
+  );
+}
+
 export function Modal({ title, onClose, children, wide = false }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">

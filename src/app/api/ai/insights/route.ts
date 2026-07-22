@@ -20,12 +20,14 @@ interface ProductPrediction {
 
 interface InsightsResult {
   summary: string;
+  paymentAuditSummary?: string;
   predictions: ProductPrediction[];
 }
 
 const OUTPUT_FORMAT_INSTRUCTIONS = `Respond with a single JSON object only — no markdown, no commentary. Shape:
 {
   "summary": "2-4 sentence overview of the inventory situation and the most urgent actions.",
+  "paymentAuditSummary": "2-4 sentence summary that validates payment totals vs sales totals, highlights any mismatch and likely causes.",
   "predictions": [
     {
       "productId": "the product id exactly as given in the input",
@@ -39,12 +41,63 @@ const OUTPUT_FORMAT_INSTRUCTIONS = `Respond with a single JSON object only — n
 }
 Include one prediction per input product.`;
 
+async function getPaymentSnapshot(from: Date, to: Date) {
+  const sales = await prisma.sale.findMany({
+    where: { status: "completed", createdAt: { gte: from, lte: to } },
+    select: {
+      totalAmount: true,
+      cashPaid: true,
+      mpesaPaid: true,
+      cardPaid: true,
+      changeAmount: true,
+      items: { select: { quantity: true } },
+    },
+  });
+
+  let salesTotal = 0;
+  let cashGross = 0;
+  let cashChange = 0;
+  let mpesaTotal = 0;
+  let cardTotal = 0;
+  let productsSoldUnits = 0;
+
+  for (const s of sales) {
+    salesTotal += Number(s.totalAmount || 0);
+    cashGross += Number(s.cashPaid || 0);
+    cashChange += Number(s.changeAmount || 0);
+    mpesaTotal += Number(s.mpesaPaid || 0);
+    cardTotal += Number(s.cardPaid || 0);
+    productsSoldUnits += s.items.reduce((acc, it) => acc + Number(it.quantity || 0), 0);
+  }
+
+  const cashNet = cashGross - cashChange;
+  const paymentSum = cashNet + mpesaTotal + cardTotal;
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    salesCount: sales.length,
+    productsSoldUnits,
+    salesTotal,
+    cashGross,
+    cashChange,
+    cashNet,
+    mpesaTotal,
+    cardTotal,
+    paymentSum,
+    variance: paymentSum - salesTotal,
+  };
+}
+
 // GET — latest prediction per product + stored summary
 export async function GET() {
   const { error } = await requireAuth("view_inventory_reports");
   if (error) return error;
 
-  const [rows, summarySetting, generatedSetting] = await Promise.all([
+  const now = new Date();
+  const d30 = new Date(now.getTime() - 30 * 86400000);
+
+  const [rows, summarySetting, generatedSetting, paymentAuditSetting, paymentSnapshot] = await Promise.all([
     prisma.inventoryPrediction.findMany({
       where: { predictionType: PREDICTION_TYPE },
       orderBy: { createdAt: "desc" },
@@ -53,6 +106,8 @@ export async function GET() {
     }),
     prisma.setting.findUnique({ where: { key: "ai_insights_summary" } }),
     prisma.setting.findUnique({ where: { key: "ai_insights_generated_at" } }),
+    prisma.setting.findUnique({ where: { key: "ai_insights_payment_audit_summary" } }),
+    getPaymentSnapshot(d30, now),
   ]);
 
   // Keep only the newest prediction per product
@@ -65,6 +120,8 @@ export async function GET() {
     data: {
       summary: summarySetting?.value || null,
       generatedAt: generatedSetting?.value || null,
+      paymentAuditSummary: paymentAuditSetting?.value || null,
+      paymentSnapshot,
       predictions: latest,
     },
   });
@@ -86,7 +143,7 @@ export async function POST() {
   const d30 = new Date(now.getTime() - 30 * 86400000);
   const d90 = new Date(now.getTime() - 90 * 86400000);
 
-  const [products, saleItems] = await Promise.all([
+  const [products, saleItems, paymentSnapshot] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true },
       select: {
@@ -98,6 +155,7 @@ export async function POST() {
       where: { sale: { createdAt: { gte: d90 }, status: "completed" } },
       select: { productId: true, quantity: true, sale: { select: { createdAt: true } } },
     }),
+    getPaymentSnapshot(d30, now),
   ]);
 
   if (!products.length) {
@@ -148,7 +206,7 @@ export async function POST() {
           },
           {
             role: "user",
-            content: `Today is ${now.toISOString().slice(0, 10)}. Analyze these products and produce a demand forecast and reorder recommendation for each, as JSON:\n\n${inputLines.join("\n")}`,
+            content: `Today is ${now.toISOString().slice(0, 10)}. Analyze these products and produce a demand forecast and reorder recommendation for each, as JSON:\n\n${inputLines.join("\n")}\n\nAlso audit this payment summary for the last 30 days and provide a concise paymentAuditSummary:\n${JSON.stringify(paymentSnapshot)}`,
           },
         ],
       }),
@@ -218,12 +276,29 @@ export async function POST() {
         update: { value: now.toISOString() },
         create: { key: "ai_insights_generated_at", value: now.toISOString(), description: "When AI insights were last generated" },
       }),
+      prisma.setting.upsert({
+        where: { key: "ai_insights_payment_audit_summary" },
+        update: { value: result.paymentAuditSummary || "" },
+        create: {
+          key: "ai_insights_payment_audit_summary",
+          value: result.paymentAuditSummary || "",
+          description: "Latest AI summary for payment-method totals vs sales totals",
+        },
+      }),
     ],
     { maxWait: 10000, timeout: 30000 }
   );
 
   return Response.json(
-    { data: { summary: result.summary, generatedAt: now.toISOString(), count: predictions.length } },
+    {
+      data: {
+        summary: result.summary,
+        paymentAuditSummary: result.paymentAuditSummary || null,
+        paymentSnapshot,
+        generatedAt: now.toISOString(),
+        count: predictions.length,
+      },
+    },
     { status: 201 }
   );
 }

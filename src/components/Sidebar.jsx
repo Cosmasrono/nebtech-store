@@ -6,35 +6,46 @@ import { usePathname, useRouter } from "next/navigation";
 const NAV = [
   { section: "Operations", items: [
     { href: "/dashboard", label: "Dashboard", icon: "▦" },
-    { href: "/pos", label: "Point of Sale", icon: "🛒" },
-    { href: "/sales", label: "Sales", icon: "🧾" },
-    { href: "/invoices", label: "Invoices", icon: "📄" },
-    { href: "/loans", label: "Loans", icon: "🤝" },
+    { href: "/pos", label: "Point of Sale", icon: "🛒", perm: "process_sales" },
+    { href: "/sales", label: "Sales", icon: "🧾", perm: ["view_own_sales", "view_all_sales"] },
+    { href: "/invoices", label: "Invoices", icon: "📄", perm: "view_all_sales" },
+    { href: "/loans", label: "Loans", icon: "🤝", perm: "view_all_sales" },
   ]},
   { section: "Inventory", items: [
-    { href: "/products", label: "Products", icon: "📦" },
-    { href: "/categories", label: "Categories", icon: "🏷️" },
-    { href: "/stock-transfers", label: "Stock Transfers", icon: "🔁" },
-    { href: "/suppliers", label: "Suppliers", icon: "🚚" },
-    { href: "/purchase-orders", label: "Purchase Orders", icon: "📋" },
-    { href: "/ai-insights", label: "AI Insights", icon: "✨" },
+    { href: "/products", label: "Products", icon: "📦", perm: "manage_products" },
+    { href: "/categories", label: "Categories", icon: "🏷️", perm: "manage_products" },
+    { href: "/stock-transfers", label: "Stock Transfers", icon: "🔁", perm: "adjust_stock" },
+    { href: "/suppliers", label: "Suppliers", icon: "🚚", perm: "manage_suppliers" },
+    { href: "/purchase-orders", label: "Purchase Orders", icon: "📋", perm: "create_purchase_order" },
+    { href: "/ai-insights", label: "AI Insights", icon: "✨", perm: "view_inventory_reports" },
   ]},
   { section: "Finance", items: [
-    { href: "/expenses", label: "Expenses", icon: "💸" },
-    { href: "/promotions", label: "Promotions", icon: "🎯" },
-    { href: "/reports", label: "Reports", icon: "📈" },
+    { href: "/expenses", label: "Expenses", icon: "💸", perm: "record_expense" },
+    { href: "/promotions", label: "Promotions", icon: "🎯", perm: "give_discounts" },
+    { href: "/reports", label: "Reports", icon: "📈", perm: "view_financial_reports" },
+    { href: "/reconciliation", label: "Reconciliation", icon: "⚖️", perm: "view_financial_reports" },
+    { href: "/mpesa-payments", label: "M-Pesa Payments", icon: "📱", perm: "view_financial_reports" },
   ]},
   { section: "Administration", items: [
-    { href: "/users", label: "Users", icon: "👥" },
-    { href: "/branches", label: "Branches", icon: "🏬" },
-    { href: "/audit-logs", label: "Audit Logs", icon: "🕵️" },
-    { href: "/system", label: "System Control", icon: "⚙️" },
+    { href: "/users", label: "Users", icon: "👥", perm: "manage_users" },
+    { href: "/branches", label: "Branches", icon: "🏬", admin: true },
+    { href: "/audit-logs", label: "Audit Logs", icon: "🕵️", admin: true },
+    { href: "/system", label: "System Control", icon: "⚙️", perm: "change_settings" },
   ]},
 ];
 
 export default function Sidebar({ user }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const canSee = (item) => {
+    if (user?.isAdmin) return true;
+    if (item.admin) return false;
+    if (!item.perm) return true;
+    const perms = user?.permissions || [];
+    return [].concat(item.perm).some((p) => perms.includes(p));
+  };
+  const nav = NAV.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter((g) => g.items.length);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -49,7 +60,7 @@ export default function Sidebar({ user }) {
         <div className="text-xs text-slate-500 truncate">{user?.name}</div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
-        {NAV.map((group) => (
+        {nav.map((group) => (
           <div key={group.section} className="mb-3">
             <div className="px-5 py-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">{group.section}</div>
             {group.items.map((item) => {

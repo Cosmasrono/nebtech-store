@@ -37,6 +37,14 @@ export default function AiInsightsPage() {
   }
 
   const predictions = data?.predictions || [];
+  const payment = data?.paymentSnapshot;
+
+  const fmt = (n) =>
+    new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      minimumFractionDigits: 2,
+    }).format(Number(n || 0));
 
   return (
     <div className="space-y-6">
@@ -44,7 +52,7 @@ export default function AiInsightsPage() {
         <div>
           <h1 className="text-xl font-bold">AI Insights</h1>
           <p className="text-sm text-slate-500">
-            Demand forecasts and reorder recommendations, powered by AI.
+            Demand forecasts plus AI payment audit, powered by AI.
             {data?.generatedAt && <> Last generated {new Date(data.generatedAt).toLocaleString()}.</>}
           </p>
         </div>
@@ -59,7 +67,52 @@ export default function AiInsightsPage() {
 
       {generating && (
         <div className="card p-4 text-sm text-slate-500">
-          The AI is analyzing your sales history and stock levels. This can take a minute or two…
+          The AI is analyzing your sales, payment methods, and stock levels. This can take a minute or two…
+        </div>
+      )}
+
+      {payment && (
+        <div className="card p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Payment Check (Last 30 Days)</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <div className="text-slate-500">Cash (net)</div>
+              <div className="font-semibold">{fmt(payment.cashNet)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">M-Pesa</div>
+              <div className="font-semibold">{fmt(payment.mpesaTotal)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Card</div>
+              <div className="font-semibold">{fmt(payment.cardTotal)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Payment Sum</div>
+              <div className="font-semibold">{fmt(payment.paymentSum)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Sales Total</div>
+              <div className="font-semibold">{fmt(payment.salesTotal)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Variance</div>
+              <div className={`font-semibold ${Math.abs(payment.variance || 0) > 0.009 ? "text-rose-600" : "text-emerald-600"}`}>
+                {fmt(payment.variance)}
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500">Products Sold (units)</div>
+              <div className="font-semibold">{payment.productsSoldUnits}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Completed Sales</div>
+              <div className="font-semibold">{payment.salesCount}</div>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Compare these totals with your Reports page using the same date window.
+          </p>
         </div>
       )}
 
@@ -67,6 +120,13 @@ export default function AiInsightsPage() {
         <div className="card p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Summary</div>
           <p className="text-sm leading-relaxed">{data.summary}</p>
+        </div>
+      )}
+
+      {data?.paymentAuditSummary && (
+        <div className="card p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">AI Payment Audit</div>
+          <p className="text-sm leading-relaxed">{data.paymentAuditSummary}</p>
         </div>
       )}
 

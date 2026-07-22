@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert } from "@/components/ui";
+import { Alert, Loading } from "@/components/ui";
 
 export default function SystemPage() {
   const [settings, setSettings] = useState(null);
   const [msg, setMsg] = useState(null);
   const [error, setError] = useState("");
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     fetch("/api/system").then(async (r) => {
@@ -24,8 +25,27 @@ export default function SystemPage() {
     else setMsg({ ok: false, text: (await res.json()).message || "Save failed." });
   }
 
+  async function seedPharmacy() {
+    if (!confirm(
+      "Load the Pharmacy catalog?\n\n" +
+      "• 20 pharmacy products will be added and stock split across your active branches.\n" +
+      "• Current products with no sales are removed; those with sale history are deactivated (history is kept)."
+    )) return;
+
+    setSeeding(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/system/seed-catalog", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) setMsg({ ok: true, text: data.message });
+      else setMsg({ ok: false, text: data.message || "Seeding failed." });
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   if (error) return <div className="rounded-lg bg-amber-50 text-amber-800 px-4 py-3 text-sm">{error}</div>;
-  if (!settings) return <div className="text-slate-500">Loading…</div>;
+  if (!settings) return <Loading />;
 
   const set = (k) => (e) => setSettings({ ...settings, [k]: e.target.type === "checkbox" ? String(e.target.checked) : e.target.value });
   const isOn = (v) => v === "true" || v === true;
@@ -44,6 +64,22 @@ export default function SystemPage() {
         <ToggleRow label="Subscription active" hint="When off, staff see a subscription-expired notice."
           checked={isOn(settings.subscription_active)} onChange={(v) => setSettings({ ...settings, subscription_active: String(v) })} />
         <button className="btn-primary" onClick={save}>Save settings</button>
+      </div>
+
+      <div className="card p-6 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold">Pharmacy catalog</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Load 20 pharmacy products (medicines, first aid, devices). Stock is distributed
+            evenly across all active branches. Existing products with sales history are
+            deactivated (history is preserved); others are removed.
+          </p>
+        </div>
+        <div>
+          <button className="btn-primary" disabled={seeding} onClick={seedPharmacy}>
+            {seeding ? "Loading pharmacy…" : "Load Pharmacy catalog"}
+          </button>
+        </div>
       </div>
     </div>
   );

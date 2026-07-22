@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal, Alert } from "@/components/ui";
 
-const EMPTY = { name: "", location: "", phone: "", isMain: false, stockDistributionPercentage: 0 };
+const EMPTY = { name: "", code: "", address: "", phone: "", isMain: false };
 
 export default function BranchesPage() {
   const [rows, setRows] = useState([]);
@@ -19,13 +19,23 @@ export default function BranchesPage() {
       method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
     });
     if (res.ok) { setEditing(null); load(); }
-    else setMsg({ ok: false, text: (await res.json()).message || "Save failed." });
+    else {
+      const text = await res.json().then((d) => d.message).catch(() => null);
+      setMsg({ ok: false, text: text || `Save failed (HTTP ${res.status}).` });
+    }
   }
 
   async function toggle(id) {
     const res = await fetch(`/api/branches/${id}/toggle-status`, { method: "POST" });
     if (res.ok) load();
     else setMsg({ ok: false, text: (await res.json()).message || "Toggle failed." });
+  }
+
+  async function remove(b) {
+    if (!confirm(`Delete branch "${b.name}" (${b.code})? This cannot be undone.`)) return;
+    const res = await fetch(`/api/branches/${b.id}`, { method: "DELETE" });
+    if (res.ok) { setMsg({ ok: true, text: `Branch "${b.name}" deleted.` }); load(); }
+    else setMsg({ ok: false, text: (await res.json()).message || "Delete failed." });
   }
 
   return (
@@ -38,21 +48,30 @@ export default function BranchesPage() {
       <div className="card overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr><th className="table-th">Name</th><th className="table-th">Location</th><th className="table-th">Phone</th>
-            <th className="table-th">Type</th><th className="table-th text-right">Stock %</th><th className="table-th">Status</th><th className="table-th"></th></tr>
+            <tr><th className="table-th">Code</th><th className="table-th">Name</th><th className="table-th">Location</th><th className="table-th">Phone</th>
+            <th className="table-th">Type</th><th className="table-th">Status</th><th className="table-th"></th></tr>
           </thead>
           <tbody>
             {rows.map((b) => (
               <tr key={b.id} className="hover:bg-slate-50">
+                <td className="table-td"><span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5">{b.code || "—"}</span></td>
                 <td className="table-td font-medium">{b.name}</td>
-                <td className="table-td">{b.location}</td>
+                <td className="table-td">{b.address}</td>
                 <td className="table-td">{b.phone}</td>
                 <td className="table-td">{b.isMain ? <span className="badge bg-teal-50 text-teal-700">Main</span> : <span className="text-slate-400 text-sm">Branch</span>}</td>
-                <td className="table-td text-right">{b.stockDistributionPercentage}%</td>
                 <td className="table-td"><span className={`badge ${b.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{b.isActive ? "Active" : "Inactive"}</span></td>
                 <td className="table-td text-right space-x-3">
                   <button className="text-teal-700 text-sm hover:underline" onClick={() => setEditing(b)}>Edit</button>
-                  {!b.isMain && <button className="text-amber-600 text-sm hover:underline" onClick={() => toggle(b.id)}>{b.isActive ? "Disable" : "Enable"}</button>}
+                  {!b.isMain && (
+                    <>
+                      <button className="text-amber-600 text-sm hover:underline" onClick={() => toggle(b.id)}>
+                        {b.isActive ? "Disable" : "Enable"}
+                      </button>
+                      <button className="text-rose-600 text-sm hover:underline" onClick={() => remove(b)}>
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -68,16 +87,25 @@ export default function BranchesPage() {
 function BranchModal({ row, onClose, onSave }) {
   const [form, setForm] = useState(row);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  const setCode = (e) =>
+    setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) });
   return (
     <Modal title={form.id ? "Edit branch" : "Add branch"} onClose={onClose}>
       <div className="space-y-3">
-        <div><label className="label">Name *</label><input className="input" value={form.name} onChange={set("name")} /></div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Location</label><input className="input" value={form.location || ""} onChange={set("location")} /></div>
+          <div>
+            <label className="label">Name *</label>
+            <input className="input" value={form.name} onChange={set("name")} />
+          </div>
+          <div>
+            <label className="label">Code {form.id ? "" : <span className="text-slate-400 font-normal">(auto if blank)</span>}</label>
+            <input className="input font-mono uppercase" value={form.code || ""} onChange={setCode} placeholder="e.g. NRB01" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Location</label><input className="input" value={form.address || ""} onChange={set("address")} /></div>
           <div><label className="label">Phone</label><input className="input" value={form.phone || ""} onChange={set("phone")} /></div>
         </div>
-        <div><label className="label">Stock distribution %</label>
-          <input type="number" min="0" max="100" className="input" value={form.stockDistributionPercentage} onChange={set("stockDistributionPercentage")} /></div>
         <div className="flex items-center gap-2">
           <input id="ismain" type="checkbox" checked={form.isMain} onChange={set("isMain")} />
           <label htmlFor="ismain" className="text-sm">Main branch (receives all incoming stock)</label>
