@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getCatalog, getQueuedSales, isNetworkError, queueSale, searchCatalog } from "@/lib/offline";
 
 const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
@@ -17,16 +18,39 @@ export default function PosPage() {
   const [promo, setPromo] = useState(null);
   const [promoCode, setPromoCode] = useState("");
   const [msg, setMsg] = useState(null);
+  const [online, setOnline] = useState(true);
   const searchRef = useRef(null);
 
+  // Online: ask the server. Offline (or the request fails): search the cached catalog.
   const loadProducts = useCallback(async (query = "") => {
-    const res = await fetch(`/api/pos/products?q=${encodeURIComponent(query)}`);
-    if (res.ok) setProducts((await res.json()).data);
+    if (navigator.onLine) {
+      try {
+        const res = await fetch(`/api/pos/products?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          setProducts((await res.json()).data);
+          return;
+        }
+      } catch {}
+    }
+    const cached = await getCatalog().catch(() => []);
+    setProducts(searchCatalog(cached, query));
+  }, []);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
   }, []);
 
   useEffect(() => {
     loadProducts();
-    fetch("/api/shifts/active").then((r) => r.json()).then((d) => setShift(d.data));
+    fetch("/api/shifts/active").then((r) => r.json()).then((d) => setShift(d.data)).catch(() => {});
   }, [loadProducts]);
 
   useEffect(() => {
@@ -63,7 +87,13 @@ export default function PosPage() {
 
   async function applyPromo() {
     if (!promoCode.trim()) return;
-    const res = await fetch(`/api/promotions?code=${encodeURIComponent(promoCode.trim())}`);
+    let res;
+    try {
+      res = await fetch(`/api/promotions?code=${encodeURIComponent(promoCode.trim())}`);
+    } catch {
+      setMsg({ ok: false, text: "Promo codes can't be checked while offline." });
+      return;
+    }
     if (res.ok) {
       setPromo((await res.json()).data);
       setMsg({ ok: true, text: "Promo applied." });
@@ -161,7 +191,21 @@ export default function PosPage() {
         </div>
       </div>
 
-      {completedSale && (
+      {completedSale?.offline && (
+        <Modal title="Sale saved offline" onClose={() => setCompletedSale(null)}>
+          <div className="text-center space-y-1 mb-4">
+            <div className="text-4xl">📥</div>
+            <div className="font-mono text-sm text-slate-500">Ref {completedSale.clientId.slice(0, 8).toUpperCase()}</div>
+            <div className="text-2xl font-bold">{fmt(completedSale.totalAmount)}</div>
+            <p className="text-sm text-slate-500">
+              No internet right now. This sale is stored on this device and will upload automatically when the
+              connection is back — it will then appear under Sales with a receipt number you can print.
+            </p>
+          </div>
+          <button className="btn-primary w-full" onClick={() => setCompletedSale(null)}>New sale</button>
+        </Modal>
+      )}
+      {completedSale && !completedSale.offline && (
         <Modal title="Sale complete" onClose={() => setCompletedSale(null)}>
           <div className="text-center space-y-1 mb-4">
             <div className="text-4xl">✅</div>
@@ -189,6 +233,7 @@ export default function PosPage() {
       {showPayModal && (
         <PaymentModal
           total={total}
+          online={online}
           onClose={() => setShowPayModal(false)}
           onMpesaFailed={() => {
             setShowPayModal(false);
@@ -207,12 +252,46 @@ export default function PosPage() {
               promotionId: promo?.id || null,
               totalAmount: total,
               ...payment,
+              // Lets the server drop a duplicate if this request landed but the reply was lost
+              clientId: crypto.randomUUID(),
             };
-            const res = await fetch("/api/sales", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            });
+            const resetCart = () => {
+              setCart([]);
+              setPromo(null);
+              setPromoCode("");
+              setShowPayModal(false);
+            };
+            const saveOffline = async () => {
+              // M-Pesa sales are always confirmed online, so only cash/card reach here.
+              const entry = await queueSale({
+                ...body,
+                items: body.items.map((it) => ({ ...it, name: cart.find((c) => c.productId === it.productId)?.name })),
+              });
+              resetCart();
+              setCompletedSale({ offline: true, clientId: entry.clientId, totalAmount: total });
+              loadProducts(q);
+            };
+
+            if (!navigator.onLine && payment.primaryPaymentMethod !== "mpesa") {
+              await saveOffline();
+              return;
+            }
+            let res;
+            try {
+              res = await fetch("/api/sales", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+            } catch (e) {
+              if (isNetworkError(e) && payment.primaryPaymentMethod !== "mpesa") {
+                await saveOffline();
+              } else {
+                setMsg({ ok: false, text: "Connection lost while recording the sale. Check Sales before retrying." });
+                setShowPayModal(false);
+              }
+              return;
+            }
             const data = await res.json();
             if (res.ok) {
               setCart([]);
@@ -274,7 +353,18 @@ function ShiftModal({ shift, onClose, onChanged }) {
     const body = shift
       ? { closingCashCounted: countedTotal, closingNotes: [notes, breakdown && `Count: ${breakdown}`].filter(Boolean).join(" | ") }
       : { openingCash: amount, openingNotes: notes };
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // Offline cash sales must reach the server first, or the drawer count won't match expected cash.
+    if (shift && (await getQueuedSales().catch(() => [])).length) {
+      setError("Some offline sales haven't uploaded yet. Reconnect (or resolve them in the top bar) before closing the shift.");
+      return;
+    }
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    } catch {
+      setError("You're offline. Shifts can only be opened or closed with an internet connection.");
+      return;
+    }
     const data = await res.json();
     if (!res.ok) { setError(data.message || "Failed."); return; }
     if (shift) setCloseResult(data.data);
@@ -351,7 +441,7 @@ function ShiftModal({ shift, onClose, onChanged }) {
   );
 }
 
-function PaymentModal({ total, onClose, onConfirm, onMpesaFailed }) {
+function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
   const [method, setMethod] = useState("cash");
   const [cashPaid, setCashPaid] = useState("");
   const [phone, setPhone] = useState("");
@@ -490,7 +580,13 @@ function PaymentModal({ total, onClose, onConfirm, onMpesaFailed }) {
         </div>
       )}
 
-      {method === "mpesa" && (
+      {method === "mpesa" && !online && mpesaPhase === "idle" && (
+        <div className="text-sm rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
+          M-Pesa needs an internet connection. Take cash or card, or wait until you're back online.
+        </div>
+      )}
+
+      {method === "mpesa" && (online || mpesaPhase !== "idle") && (
         <div className="space-y-3">
           <div>
             <label className="label">Customer phone (Safaricom)</label>

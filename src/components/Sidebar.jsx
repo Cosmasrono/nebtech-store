@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { clearOfflineData, getQueuedSales, syncQueuedSales } from "@/lib/offline";
 
 const NAV = [
   { section: "Operations", items: [
@@ -48,7 +49,20 @@ export default function Sidebar({ user }) {
   const nav = NAV.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter((g) => g.items.length);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    // Offline sales are uploaded under whoever is signed in, so flush them first.
+    await syncQueuedSales().catch(() => {});
+    const left = await getQueuedSales().catch(() => []);
+    if (left.length && !confirm(
+      `${left.length} offline sale(s) on this device have not been uploaded. Signing out will delete them. Sign out anyway?`
+    )) return;
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      alert("You're offline. Reconnect to sign out.");
+      return;
+    }
+    await clearOfflineData().catch(() => {});
+    navigator.serviceWorker?.controller?.postMessage("clear-caches");
     router.push("/login");
     router.refresh();
   }

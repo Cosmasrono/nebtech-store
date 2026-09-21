@@ -4,6 +4,7 @@ import { getAuthUser, userHasRole } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import ToastProvider from "@/components/ToastProvider";
 import TopProgress from "@/components/TopProgress";
+import OfflineSync from "@/components/OfflineSync";
 
 export default async function AppLayout({ children }) {
   const authUser = await getAuthUser();
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }) {
     <div className="min-h-screen">
       <Sidebar user={session} />
       <main className="pl-60 min-h-screen flex flex-col">
+        <OfflineSync />
         <div className="p-6 max-w-7xl mx-auto w-full flex-1">{children}</div>
         <footer className="px-6 pb-6">
           <div className="max-w-7xl mx-auto text-center text-sm text-slate-500">

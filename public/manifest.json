@@ -1,0 +1,13 @@
+{
+  "name": "NebTech Store",
+  "short_name": "NebTech",
+  "description": "Point of Sale & Inventory Management",
+  "start_url": "/pos",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

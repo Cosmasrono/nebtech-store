@@ -45,6 +45,25 @@ export async function POST(req) {
     return Response.json({ message: "At least one sale item is required." }, { status: 422 });
   }
 
+  // Offline POS sales carry a client-generated id; if a sync retry re-sends one
+  // that already landed, return the existing sale instead of recording it twice.
+  const clientId = typeof data.clientId === "string" && data.clientId.length <= 64 ? data.clientId : null;
+  if (clientId) {
+    const existing = await prisma.sale.findFirst({
+      where: { clientId, cashierId: user.id },
+      include: { items: { include: { product: true } } },
+    });
+    if (existing) return Response.json({ data: existing, duplicate: true }, { status: 200 });
+  }
+
+  // Keep the real time an offline sale happened (bounded so it can't be backdated arbitrarily).
+  let createdAt;
+  if (clientId && data.offlineCreatedAt) {
+    const t = new Date(data.offlineCreatedAt);
+    const age = Date.now() - t.getTime();
+    if (Number.isFinite(age) && age >= 0 && age <= 7 * 24 * 60 * 60 * 1000) createdAt = t;
+  }
+
   // Prices and totals are always recomputed from the catalog — never trusted from the client.
   const productIds = [...new Set(data.items.map((i) => i.productId))];
   const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
@@ -166,6 +185,8 @@ export async function POST(req) {
           changeAmount,
           notes: data.notes || null,
           shiftId: data.shiftId || shift?.id || null,
+          clientId,
+          ...(createdAt && { createdAt }),
         },
       });
 

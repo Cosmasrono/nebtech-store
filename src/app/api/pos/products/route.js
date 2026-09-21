@@ -6,6 +6,8 @@ export async function GET(req) {
   if (error) return error;
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
+  // ?all=1 returns the whole active catalog so the POS can keep selling offline
+  const all = searchParams.get("all") === "1";
 
   const products = await prisma.product.findMany({
     where: {
@@ -24,7 +26,7 @@ export async function GET(req) {
       branchStocks: user.branchId ? { where: { branchId: user.branchId } } : true,
     },
     orderBy: { name: "asc" },
-    take: 60,
+    take: all ? 5000 : 60,
   });
 
   return Response.json({
