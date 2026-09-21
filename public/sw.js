@@ -1,6 +1,6 @@
 // NebTech Store service worker — keeps the app shell available offline.
 // Bump VERSION to force clients onto fresh caches after a deploy that changes this file.
-const VERSION = "v1";
+const VERSION = "v2";
 const PAGES = `nebtech-pages-${VERSION}`;
 const ASSETS = `nebtech-assets-${VERSION}`;
 const DATA = `nebtech-data-${VERSION}`;
@@ -23,39 +23,89 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Every JS/CSS file a page needs. A cached page without its chunks crashes with
+// ChunkLoadError offline, so pages and their assets must always be cached together.
+function assetUrlsIn(html) {
+  const urls = new Set();
+  for (const m of html.matchAll(/\/_next\/static\/[^"'\s\\)]+?\.(?:js|css)/g)) urls.add(m[0]);
+  // Chunk paths also appear inside the RSC payload as "static/chunks/…" strings
+  for (const m of html.matchAll(/(?<![\w/])static\/(?:chunks|css)\/[^"'\s\\]+?\.(?:js|css)/g)) urls.add(`/_next/${m[0]}`);
+  return [...urls];
+}
+
+async function cacheAssets(urls) {
+  const cache = await caches.open(ASSETS);
+  await Promise.all(
+    urls.map(async (u) => {
+      try {
+        if (await cache.match(u)) return; // hashed filenames never change
+        const res = await fetch(u);
+        if (res.ok) await cache.put(u, res);
+      } catch {}
+    })
+  );
+}
+
+// Cache the POS page plus everything it loads, so it can open with no connection.
+async function warm(clientAssetUrls = []) {
+  await cacheAssets(clientAssetUrls);
+  try {
+    const res = await fetch(OFFLINE_FALLBACK, { credentials: "same-origin" });
+    if (!res.ok || res.redirected) return;
+    const html = await res.clone().text();
+    await cacheAssets(assetUrlsIn(html));
+    // Store the page only after its assets are in, so a cached page never lacks its code.
+    await (await caches.open(PAGES)).put(OFFLINE_FALLBACK, res);
+  } catch {}
+}
+
 self.addEventListener("message", (event) => {
+  const msg = event.data || {};
   // Sent on sign-out so the next person on this device can't see cached pages.
-  if (event.data === "clear-caches") {
+  if (msg === "clear-caches" || msg.type === "clear-caches") {
     event.waitUntil(Promise.all([PAGES, DATA].map((k) => caches.delete(k))));
   }
-  // Sent after sign-in: make sure the POS page is cached even if it wasn't visited yet.
-  if (event.data === "warm") {
-    event.waitUntil(
-      caches.open(PAGES).then(async (cache) => {
-        try {
-          const res = await fetch(OFFLINE_FALLBACK, { credentials: "same-origin" });
-          if (res.ok && !res.redirected) await cache.put(OFFLINE_FALLBACK, res);
-        } catch {}
-      })
-    );
+  // Sent on every app load while online.
+  if (msg === "warm" || msg.type === "warm") {
+    const urls = (msg.urls || []).filter((u) => typeof u === "string" && u.startsWith("/_next/static/"));
+    event.waitUntil(warm(urls));
   }
 });
 
-async function networkFirst(request, cacheName, fallbackUrl) {
+async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   try {
     const res = await fetch(request);
     // Don't cache redirects to /login or error pages
-    if (res.ok && !res.redirected) cache.put(request, res.clone());
+    if (res.ok && !res.redirected) cache.put(request, res.clone()).catch(() => {});
     return res;
   } catch (err) {
     const hit = await cache.match(request, { ignoreVary: true });
     if (hit) return hit;
-    if (fallbackUrl) {
-      const fb = await cache.match(fallbackUrl, { ignoreVary: true });
-      if (fb) return fb;
-    }
     throw err;
+  }
+}
+
+async function navigate(request) {
+  try {
+    return await networkFirst(request, PAGES);
+  } catch (err) {
+    // Page never cached: send the cashier to the POS, which always is (redirect keeps
+    // the URL and the page content in agreement, unlike serving /pos HTML at /dashboard).
+    const url = new URL(request.url);
+    if (url.pathname !== OFFLINE_FALLBACK && (await (await caches.open(PAGES)).match(OFFLINE_FALLBACK))) {
+      return Response.redirect(OFFLINE_FALLBACK, 302);
+    }
+    return new Response(
+      `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Offline — NebTech Store</title>
+      <div style="font-family:system-ui,sans-serif;max-width:28rem;margin:20vh auto;padding:0 1rem;text-align:center;color:#334155">
+        <h1 style="font-size:1.25rem">You're offline</h1>
+        <p>This page hasn't been saved on this device yet. Reconnect and open the Point of Sale once so it can work offline next time.</p>
+        <button onclick="location.reload()" style="margin-top:1rem;padding:.6rem 1.2rem;border:0;border-radius:.5rem;background:#0f766e;color:#fff;font-size:1rem">Try again</button>
+      </div>`,
+      { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
   }
 }
 
@@ -64,7 +114,7 @@ async function cacheFirst(request) {
   const hit = await cache.match(request);
   if (hit) return hit;
   const res = await fetch(request);
-  if (res.ok) cache.put(request, res.clone());
+  if (res.ok) cache.put(request, res.clone()).catch(() => {});
   return res;
 }
 
@@ -87,9 +137,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Full page loads: network first, then the cached copy, then the cached POS page.
+  // Full page loads: network first, then the cached copy, then the POS page.
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, PAGES, OFFLINE_FALLBACK));
+    event.respondWith(navigate(request));
     return;
   }
 

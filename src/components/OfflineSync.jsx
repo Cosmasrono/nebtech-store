@@ -50,7 +50,15 @@ export default function OfflineSync() {
       navigator.serviceWorker
         .register("/sw.js")
         .then(() => navigator.serviceWorker.ready)
-        .then((reg) => reg.active?.postMessage("warm"))
+        .then((reg) => {
+          if (!navigator.onLine) return;
+          // Files this page loaded before the service worker took control aren't cached yet.
+          const urls = performance
+            .getEntriesByType("resource")
+            .map((e) => new URL(e.name).pathname)
+            .filter((p) => p.startsWith("/_next/static/"));
+          reg.active?.postMessage({ type: "warm", urls });
+        })
         .catch(() => {});
     }
 
