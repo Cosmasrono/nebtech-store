@@ -2,16 +2,22 @@ import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(req, { params }) {
-  const { user, error } = await requireAuth();
+  const { user, error } = await requireAuth("view_all_sales");
   if (error) return error;
   const { id } = await params;
   const b = await req.json();
-  if (!b.amount) return Response.json({ message: "Amount is required." }, { status: 422 });
+  const amount = Math.round(Number(b.amount) * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return Response.json({ message: "Enter a payment amount greater than zero." }, { status: 422 });
+  }
 
   const invoice = await prisma.invoice.findUnique({ where: { id } });
   if (!invoice) return Response.json({ message: "Not found." }, { status: 404 });
-
-  const amount = Number(b.amount);
+  const outstanding = Math.max(0, invoice.totalAmount - invoice.amountPaid);
+  if (outstanding <= 0.009) return Response.json({ message: "This invoice is already fully paid." }, { status: 422 });
+  if (amount > outstanding + 0.009) {
+    return Response.json({ message: `Payment is more than the balance due (KSh ${outstanding.toLocaleString()}).` }, { status: 422 });
+  }
   const newPaid = invoice.amountPaid + amount;
   const newBalance = Math.max(0, invoice.totalAmount - newPaid);
 

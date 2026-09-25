@@ -8,6 +8,7 @@ const fmt = (n) => (n == null ? "—" : `KSh ${Number(n).toLocaleString("en-KE",
 export default function ProductsPage() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState("");
+  const [search, setSearch] = useState(""); // what's typed; q follows it after a short pause
   const [status, setStatus] = useState("active"); // active | inactive | all
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -24,6 +25,11 @@ export default function ProductsPage() {
     }
   }
   useEffect(() => { load(); }, [q, status, page]); // eslint-disable-line
+  // Search once the user pauses typing, not on every key press.
+  useEffect(() => {
+    const t = setTimeout(() => { if (search !== q) { setPage(1); setQ(search); } }, 300);
+    return () => clearTimeout(t);
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function deactivate(p) {
     if (!confirm(`Deactivate "${p.name}" (${p.sku})?\n\nIt will be hidden from the main list and POS. Sale history is preserved.`)) return;
@@ -68,8 +74,8 @@ export default function ProductsPage() {
           <input
             className="input w-64"
             placeholder="Search products…"
-            value={q}
-            onChange={(e) => { setPage(1); setQ(e.target.value); }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
           <select
             className="input w-40"
@@ -87,6 +93,7 @@ export default function ProductsPage() {
           >
             Delete all
           </button>
+          <Link href="/products/import" className="btn-secondary shrink-0">Import CSV</Link>
           <Link href="/products/new" className="btn-primary shrink-0">Add product</Link>
         </div>
       </div>
@@ -108,7 +115,26 @@ export default function ProductsPage() {
           <tbody>
             {rows.map((p) => (
               <tr key={p.id} className={`hover:bg-slate-50 ${!p.isActive ? "opacity-60" : ""}`}>
-                <td className="table-td font-medium">{p.name}</td>
+                <td className="table-td">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-slate-900">{p.name}</span>
+                    {p.prescriptionRequired && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200" title="Prescription / POM required">
+                        POM
+                      </span>
+                    )}
+                    {p.packSize && (
+                      <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">
+                        {p.packSize}
+                      </span>
+                    )}
+                  </div>
+                  {p.genericName && (
+                    <div className="text-xs text-slate-400 italic truncate max-w-xs" title={p.genericName}>
+                      {p.genericName}
+                    </div>
+                  )}
+                </td>
                 <td className="table-td text-slate-500">{p.sku}</td>
                 <td className="table-td">{p.category?.name}</td>
                 <td className="table-td text-right">{fmt(p.costPrice)}</td>

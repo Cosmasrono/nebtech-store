@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { generateInvoiceNumber } from "@/lib/numbers";
 
 export async function GET() {
-  const { error } = await requireAuth();
+  const { error } = await requireAuth("view_all_sales");
   if (error) return error;
   const invoices = await prisma.invoice.findMany({
     include: { customer: true, items: true, payments: true },
@@ -14,7 +14,7 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  const { user, error } = await requireAuth();
+  const { user, error } = await requireAuth("view_all_sales");
   if (error) return error;
   const b = await req.json();
   if (!b.customerId || !Array.isArray(b.items) || !b.items.length) {

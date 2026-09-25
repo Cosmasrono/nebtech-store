@@ -8,15 +8,16 @@ if (!rawSecret || rawSecret.length < 32 || rawSecret === "change-me-to-a-long-ra
   );
 }
 const SECRET = new TextEncoder().encode(rawSecret);
-const PUBLIC_PATHS = ["/login", "/register", "/system/unavailable", "/system/subscription-expired"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/set-password", "/system/unavailable", "/system/subscription-expired"];
 
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
 
-  // Public API endpoints (auth + mpesa callback from Safaricom)
+  // Public API endpoints (auth, emailed password links, and the PayHero callback)
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/register") ||
+    pathname.startsWith("/api/auth/password/") ||
     pathname.startsWith("/api/mpesa/callback")
   ) {
     return NextResponse.next();

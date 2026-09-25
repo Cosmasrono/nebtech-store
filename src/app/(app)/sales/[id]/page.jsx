@@ -31,10 +31,16 @@ export default function SaleDetailPage({ params }) {
 
       <div className="card p-6" id="receipt">
         <div className="text-center mb-4">
-          <div className="font-bold text-lg">NebTech Store</div>
-          <div className="text-xs text-slate-500">{sale.branch?.name || "Main Branch"}</div>
+          <div className="font-bold text-lg">NebTech Agrovet Supplies</div>
+          <div className="text-xs text-slate-500">{sale.branch?.name || "Main Agrovet Store"}</div>
           <div className="text-xs text-slate-500 mt-1">{new Date(sale.createdAt).toLocaleString("en-KE")}</div>
           <div className="text-sm font-mono mt-1">{sale.receiptNumber}</div>
+          {sale.customer && (
+            <div className="mt-2 text-xs bg-slate-50 rounded p-1.5 border border-slate-200 inline-block text-left">
+              <span className="font-semibold text-slate-700">Farmer: </span>{sale.customer.name}
+              {sale.customer.phone && <span className="text-slate-500"> ({sale.customer.phone})</span>}
+            </div>
+          )}
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -45,11 +51,18 @@ export default function SaleDetailPage({ params }) {
           </thead>
           <tbody>
             {sale.items.map((i) => (
-              <tr key={i.id}>
-                <td className="py-1">{i.product?.name}</td>
-                <td className="py-1 text-right">{i.quantity}</td>
-                <td className="py-1 text-right">{fmt(i.unitPrice)}</td>
-                <td className="py-1 text-right">{fmt(i.lineTotal)}</td>
+              <tr key={i.id} className="border-b border-slate-100/50">
+                <td className="py-1.5">
+                  <div className="font-medium">{i.product?.name}</div>
+                  {(i.product?.genericName || i.product?.packSize) && (
+                    <div className="text-[11px] text-slate-500">
+                      {[i.product.genericName, i.product.packSize].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                </td>
+                <td className="py-1.5 text-right">{i.quantity}</td>
+                <td className="py-1.5 text-right">{fmt(i.unitPrice)}</td>
+                <td className="py-1.5 text-right font-medium">{fmt(i.lineTotal)}</td>
               </tr>
             ))}
           </tbody>
@@ -59,10 +72,17 @@ export default function SaleDetailPage({ params }) {
           {sale.discountAmount > 0 && <Row label="Discount" value={`− ${fmt(sale.discountAmount)}`} />}
           {sale.tradeInAmount > 0 && <Row label="Trade-in credit" value={`− ${fmt(sale.tradeInAmount)}`} />}
           <Row label="Total" value={fmt(sale.totalAmount)} bold />
-          <Row label={`Paid (${sale.primaryPaymentMethod})`} value={fmt(sale.cashPaid + sale.mpesaPaid + sale.cardPaid)} />
+          <Row
+            label={`Payment method`}
+            value={sale.primaryPaymentMethod === "credit" ? "Debt (pay later)" : sale.primaryPaymentMethod.toUpperCase()}
+            className={sale.primaryPaymentMethod === "credit" ? "text-amber-700 font-semibold" : ""}
+          />
+          {sale.primaryPaymentMethod !== "credit" && (
+            <Row label="Amount tendered" value={fmt(sale.cashPaid + sale.mpesaPaid + sale.cardPaid)} />
+          )}
           {sale.changeAmount > 0 && <Row label="Change" value={fmt(sale.changeAmount)} />}
         </div>
-        <div className="text-center text-xs text-slate-400 mt-4">Served by {sale.cashier?.name} · Thank you!</div>
+        <div className="text-center text-xs text-slate-400 mt-4">Served by {sale.cashier?.name} · Quality Agrovet Inputs Guaranteed</div>
       </div>
     </div>
   );

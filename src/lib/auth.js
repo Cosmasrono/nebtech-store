@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -63,22 +64,80 @@ export async function getSession() {
       email: payload.email,
       branchId: payload.branchId,
       roles: payload.roles || [],
+      issuedAt: payload.iat,
     };
   } catch {
     return null;
   }
 }
 
-// Full: loads fresh user with roles + permissions from DB. Use in API routes.
-export async function getAuthUser() {
-  const session = await getSession();
-  if (!session) return null;
+// Loading a user with roles + permissions costs 3-4 round trips to MongoDB Atlas.
+// Every page and API call needs it, so keep it for a few seconds per server process.
+// Role changes, deactivation and password changes call invalidateAuthUser() so they
+// apply immediately on this server (other server instances catch up within the TTL).
+const AUTH_TTL_MS = 20_000;
+const authCache = new Map(); // userId -> { user, expires }
+
+export function invalidateAuthUser(userId) {
+  if (userId) authCache.delete(String(userId));
+  else authCache.clear();
+}
+
+async function loadAuthUser(userId) {
+  const hit = authCache.get(userId);
+  if (hit && hit.expires > Date.now()) return hit.user;
   const user = await prisma.user.findUnique({
-    where: { id: session.userId },
+    where: { id: userId },
     include: { roles: { include: { permissions: true } }, branch: true },
   });
-  if (!user || !user.isActive) return null;
+  authCache.set(userId, { user, expires: Date.now() + AUTH_TTL_MS });
+  if (authCache.size > 500) authCache.delete(authCache.keys().next().value);
   return user;
+}
+
+// Full: loads the user with roles + permissions (cached briefly, deduped per request).
+export const getAuthUser = cache(async function getAuthUser() {
+  const session = await getSession();
+  if (!session) return null;
+  const user = await loadAuthUser(session.userId);
+  if (!user || !user.isActive) return null;
+  // Sessions issued before the latest password change are no longer valid.
+  if (user.passwordChangedAt && session.issuedAt && session.issuedAt * 1000 < user.passwordChangedAt.getTime() - 1000) {
+    return null;
+  }
+
+  // If email is in ADMIN_EMAILS, ensure owner role is assigned in memory and DB
+  if (isAdminEmail(user.email)) {
+    const hasOwnerRole = (user.roles || []).some((r) => r.name === "owner" || r.name === "super_admin");
+    if (!hasOwnerRole) {
+      const ownerRole = await prisma.role.findFirst({ where: { name: "owner" } });
+      if (ownerRole) {
+        if (!user.roleIds.includes(ownerRole.id)) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { roleIds: { push: ownerRole.id } },
+          }).catch(() => {});
+        }
+        user.roles.push(ownerRole);
+      }
+    }
+  }
+
+  return user;
+});
+
+export function getAdminEmails() {
+  const raw = process.env.ADMIN_EMAILS || "";
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isAdminEmail(email) {
+  if (!email) return false;
+  const admins = getAdminEmails();
+  return admins.includes(String(email).trim().toLowerCase());
 }
 
 function normalizeRoleName(name) {
@@ -101,26 +160,44 @@ function roleMatches(grantedRoleName, requiredRoleName) {
 }
 
 export function userHasRole(user, ...names) {
-  return (user.roles || []).some((r) =>
+  if (user && isAdminEmail(user.email)) return true;
+  return (user?.roles || []).some((r) =>
     names.some((name) => roleMatches(r.name, name))
   );
 }
 
+const TOP_ROLE_NAMES = ["owner", "super_admin", "superadmin", "admin"];
+
+/** True for roles that carry full system access (owner / super admin). */
+export function isTopRole(role) {
+  return TOP_ROLE_NAMES.includes(normalizeRoleName(role?.name));
+}
+
+/** Owners and super admins (or ADMIN_EMAILS). Only they may grant or edit top-level access. */
+export function isTopAdmin(user) {
+  return userHasRole(user, "owner", "super_admin");
+}
+
 export function userCan(user, permission) {
+  if (user && isAdminEmail(user.email)) return true;
   if (userHasRole(user, "owner", "super_admin")) return true;
-  return (user.roles || []).some((r) =>
+  return (user?.roles || []).some((r) =>
     (r.permissions || []).some((p) => p.name === permission)
   );
 }
 
 // Guard helper for API routes
-/** @param {string | null} [permission] */
+/** @param {string | string[] | null} [permission] one permission, or an array meaning "any of these" */
 export async function requireAuth(permission = null) {
   const user = await getAuthUser();
   if (!user) {
     return { user: null, error: Response.json({ message: "Unauthenticated." }, { status: 401 }) };
   }
-  if (permission && !userCan(user, permission)) {
+  if (isAdminEmail(user.email)) {
+    return { user, error: null };
+  }
+  const needed = permission == null ? [] : Array.isArray(permission) ? permission : [permission];
+  if (needed.length && !needed.some((p) => userCan(user, p))) {
     return { user, error: Response.json({ message: "Forbidden." }, { status: 403 }) };
   }
   return { user, error: null };

@@ -19,6 +19,8 @@ model User {
   phone           String?
   emailVerifiedAt DateTime?
   password        String
+  // Set when the password changes; sessions issued before this are rejected.
+  passwordChangedAt DateTime?
   isActive        Boolean   @default(true)
   branchId        String?   @db.ObjectId
   branch          Branch?   @relation("UserBranch", fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -27,17 +29,33 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  ownedBranches   Branch[]        @relation("BranchOwner")
-  sales           Sale[]          @relation("SaleCashier")
-  shifts          Shift[]         @relation("ShiftCashier")
-  expenses        Expense[]       @relation("ExpenseRecorder")
-  stockMovements  StockMovement[]
-  auditLogs       AuditLog[]
-  cartItems       CartItem[]
-  loans           Loan[]
-  loanPayments    LoanPayment[]
-  invoices        Invoice[]
-  mpesaTxns       MpesaTransaction[]
+  ownedBranches  Branch[]           @relation("BranchOwner")
+  sales          Sale[]             @relation("SaleCashier")
+  shifts         Shift[]            @relation("ShiftCashier")
+  expenses       Expense[]          @relation("ExpenseRecorder")
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+  cartItems      CartItem[]
+  loans          Loan[]
+  loanPayments   LoanPayment[]
+  invoices       Invoice[]
+  mpesaTxns      MpesaTransaction[]
+  passwordTokens PasswordToken[]
+}
+
+// One-time links emailed to users: "invite" (set first password) or "reset".
+// Only a SHA-256 hash of the token is stored.
+model PasswordToken {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  purpose   String // invite | reset
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Role {
@@ -115,23 +133,23 @@ enum DosageForm {
 }
 
 model Product {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  name            String
-  description     String?
-  sku             String   @unique
+  id                   String      @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  description          String?
+  sku                  String      @unique
   // Not @unique: MongoDB unique indexes treat missing values as duplicates,
   // which would allow only one product without a barcode.
-  barcode         String?
+  barcode              String?
   // imei disabled for pharmacy POS — kept commented in case phones are re-added later
   // imei            String?
-  costPrice       Float?
-  sellingPrice    Float
-  quantityInStock Int      @default(0)
-  totalCost       Float    @default(0)
-  reorderLevel    Int      @default(10)
-  categoryId      String   @db.ObjectId
-  category        Category @relation(fields: [categoryId], references: [id])
-  isActive        Boolean  @default(true)
+  costPrice            Float?
+  sellingPrice         Float
+  quantityInStock      Int         @default(0)
+  totalCost            Float       @default(0)
+  reorderLevel         Int         @default(10)
+  categoryId           String      @db.ObjectId
+  category             Category    @relation(fields: [categoryId], references: [id])
+  isActive             Boolean     @default(true)
   // Pharmacy fields. Grouping brand variants by genericName lets the POS
   // show "Panadol / Hedex / Generic" side-by-side when the cashier types
   // "paracetamol".
@@ -142,8 +160,8 @@ model Product {
   packSize             String?
   manufacturer         String?
   prescriptionRequired Boolean     @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
   saleItems      SaleItem[]
   branchStocks   ProductBranchStock[]
@@ -220,6 +238,7 @@ model StockMovement {
   updatedAt    DateTime          @updatedAt
 
   @@index([productId, createdAt])
+  @@index([branchId])
 }
 
 // ─────────────────────────── Suppliers / Purchasing ───────────────────────────
@@ -289,6 +308,7 @@ model PurchaseOrderItem {
   updatedAt        DateTime      @updatedAt
 
   @@unique([purchaseOrderId, productId])
+  @@index([productId])
 }
 
 enum SupplierPaymentType {
@@ -405,11 +425,15 @@ model Sale {
   returns       Return[]
   tradeIns      TradeIn[]
   invoice       Invoice[]
+  loans         Loan[]
 
   @@index([cashierId])
   @@index([createdAt])
   @@index([status])
   @@index([clientId])
+  @@index([customerId])
+  @@index([branchId, createdAt])
+  @@index([shiftId])
 }
 
 model SaleItem {
@@ -440,6 +464,8 @@ model TradeIn {
   productId  String?  @db.ObjectId
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([saleId])
 }
 
 enum ReturnStatus {
@@ -450,22 +476,24 @@ enum ReturnStatus {
 }
 
 model Return {
-  id              String       @id @default(auto()) @map("_id") @db.ObjectId
-  saleId          String       @db.ObjectId
-  sale            Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  returnReference String       @unique
-  status          ReturnStatus @default(pending)
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  saleId          String        @db.ObjectId
+  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  returnReference String        @unique
+  status          ReturnStatus  @default(pending)
   refundAmount    Float
   refundMethod    PaymentMethod @default(cash)
   reason          String?
-  requestedById   String       @db.ObjectId
-  approvedById    String?      @db.ObjectId
+  requestedById   String        @db.ObjectId
+  approvedById    String?       @db.ObjectId
   approvedAt      DateTime?
   processedAt     DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   items ReturnItem[]
+
+  @@index([saleId])
 }
 
 model ReturnItem {
@@ -477,6 +505,8 @@ model ReturnItem {
   refundPerItem Float
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([returnId])
 }
 
 // ─────────────────────────── M-Pesa ───────────────────────────
@@ -516,8 +546,10 @@ model MpesaTransaction {
   updatedAt          DateTime    @updatedAt
 
   @@index([checkoutRequestId])
+  @@index([merchantRequestId])
   @@index([status])
   @@index([phoneNumber, createdAt])
+  @@index([saleId])
 }
 
 // ─────────────────────────── Shifts ───────────────────────────
@@ -666,6 +698,8 @@ model InvoiceItem {
   discountPerItem Float    @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([invoiceId])
 }
 
 model InvoicePayment {
@@ -680,32 +714,46 @@ model InvoicePayment {
   recordedById    String?  @db.ObjectId
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([invoiceId])
 }
 
 // ─────────────────────────── Loans ───────────────────────────
 
 model Loan {
-  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
-  customerId         String        @db.ObjectId
-  customer           Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  userId             String        @db.ObjectId
-  user               User          @relation(fields: [userId], references: [id])
-  loanNumber         String        @unique
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  customerId         String   @db.ObjectId
+  customer           Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId             String   @db.ObjectId
+  user               User     @relation(fields: [userId], references: [id])
+  loanNumber         String   @unique
   productDescription String
-  totalAmount        Float
-  amountPaid         Float         @default(0)
+  // Amount borrowed before interest. Older loans (before interest support) leave this empty;
+  // treat totalAmount as the principal for those.
+  principal          Float?
   interestRate       Float?
+  interestAmount     Float    @default(0)
+  // What the customer owes in total: principal + interestAmount
+  totalAmount        Float
+  amountPaid         Float    @default(0)
+  // Set when the loan came from a POS sale; items lists exactly which products were taken:
+  // [{ productId, name, sku, quantity, unitPrice, lineTotal }]
+  saleId             String?  @db.ObjectId
+  sale               Sale?    @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  items              Json?
   loanDate           DateTime
   dueDate            DateTime
-  status             String        @default("active")
+  status             String   @default("active") // active | paid | defaulted
   notes              String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   payments LoanPayment[]
 
   @@index([status])
   @@index([dueDate])
+  @@index([customerId])
+  @@index([saleId])
 }
 
 model LoanPayment {
@@ -721,6 +769,8 @@ model LoanPayment {
   user            User     @relation(fields: [userId], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([loanId])
 }
 
 // ─────────────────────────── Promotions / Cart / Delivery ───────────────────────────
@@ -803,6 +853,7 @@ model AuditLog {
   @@index([auditableType, auditableId])
   @@index([event])
   @@index([createdAt])
+  @@index([userId])
 }
 
 model InventoryPrediction {

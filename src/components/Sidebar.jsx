@@ -10,7 +10,7 @@ const NAV = [
     { href: "/pos", label: "Point of Sale", icon: "🛒", perm: "process_sales" },
     { href: "/sales", label: "Sales", icon: "🧾", perm: ["view_own_sales", "view_all_sales"] },
     { href: "/invoices", label: "Invoices", icon: "📄", perm: "view_all_sales" },
-    { href: "/loans", label: "Loans", icon: "🤝", perm: "view_all_sales" },
+    { href: "/debts", label: "Debts", icon: "🤝", perm: ["manage_loans", "view_all_sales"] },
   ]},
   { section: "Inventory", items: [
     { href: "/products", label: "Products", icon: "📦", perm: "manage_products" },
@@ -40,7 +40,7 @@ export default function Sidebar({ user }) {
   const router = useRouter();
 
   const canSee = (item) => {
-    if (user?.isAdmin) return true;
+    if (user?.isAdmin || user?.permissions?.includes("*")) return true;
     if (item.admin) return false;
     if (!item.perm) return true;
     const perms = user?.permissions || [];
@@ -70,7 +70,9 @@ export default function Sidebar({ user }) {
   return (
     <aside className="fixed inset-y-0 left-0 w-60 bg-slate-900 text-slate-300 flex flex-col z-30">
       <div className="px-5 py-4 border-b border-slate-800">
-        <div className="text-lg font-bold text-white">NebTech <span className="text-amber-400">Store</span></div>
+        <div className="text-lg font-bold text-white flex items-center gap-1.5">
+          <span>🌱 NebTech</span> <span className="text-emerald-400">Agrovet</span>
+        </div>
         <div className="text-xs text-slate-500 truncate">{user?.name}</div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">

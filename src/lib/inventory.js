@@ -46,7 +46,12 @@ export async function deductFefo(tx, productId, branchId, quantity) {
   return quantity - remaining;
 }
 
+// The main branch rarely changes; remember it for a minute to save a database trip per sale.
+let mainBranchCache = { id: null, expires: 0 };
+
 export async function mainBranchId(tx = prisma) {
-  const main = await tx.branch.findFirst({ where: { isMain: true } });
+  if (tx === prisma && mainBranchCache.id && mainBranchCache.expires > Date.now()) return mainBranchCache.id;
+  const main = await tx.branch.findFirst({ where: { isMain: true }, select: { id: true } });
+  if (main) mainBranchCache = { id: main.id, expires: Date.now() + 60_000 };
   return main?.id || null;
 }

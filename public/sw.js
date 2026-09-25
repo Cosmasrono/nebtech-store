@@ -1,6 +1,6 @@
 // NebTech Store service worker — keeps the app shell available offline.
 // Bump VERSION to force clients onto fresh caches after a deploy that changes this file.
-const VERSION = "v2";
+const VERSION = "v3";
 const PAGES = `nebtech-pages-${VERSION}`;
 const ASSETS = `nebtech-assets-${VERSION}`;
 const DATA = `nebtech-data-${VERSION}`;
@@ -9,7 +9,7 @@ const OFFLINE_FALLBACK = "/pos";
 // Read-only API calls that are safe to answer from cache when offline.
 // (POS products are deliberately absent: the page searches its IndexedDB catalog
 // offline, which also reflects stock sold since the connection dropped.)
-const CACHEABLE_API = ["/api/shifts/active", "/api/auth/me"];
+const CACHEABLE_API = ["/api/shifts/active", "/api/auth/me", "/api/categories"];
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -17,7 +17,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keep = [PAGES, ASSETS, DATA];
-      for (const key of await caches.keys()) if (!keep.includes(key)) await caches.delete(key);
+      for (const key of await caches.keys()) if (key.startsWith("nebtech-") && !keep.includes(key)) await caches.delete(key);
       await self.clients.claim();
     })()
   );
@@ -37,26 +37,26 @@ async function cacheAssets(urls) {
   const cache = await caches.open(ASSETS);
   await Promise.all(
     urls.map(async (u) => {
-      try {
-        if (await cache.match(u)) return; // hashed filenames never change
-        const res = await fetch(u);
-        if (res.ok) await cache.put(u, res);
-      } catch {}
+      if (await cache.match(u)) return; // hashed filenames never change
+      const res = await fetch(u);
+      if (!res.ok) throw new Error("Could not cache POS assets");
+      await cache.put(u, res);
     })
   );
 }
 
 // Cache the POS page plus everything it loads, so it can open with no connection.
 async function warm(clientAssetUrls = []) {
-  await cacheAssets(clientAssetUrls);
   try {
+    await cacheAssets(clientAssetUrls);
     const res = await fetch(OFFLINE_FALLBACK, { credentials: "same-origin" });
     if (!res.ok || res.redirected) return;
     const html = await res.clone().text();
     await cacheAssets(assetUrlsIn(html));
     // Store the page only after its assets are in, so a cached page never lacks its code.
     await (await caches.open(PAGES)).put(OFFLINE_FALLBACK, res);
-  } catch {}
+    return true;
+  } catch { return false; }
 }
 
 self.addEventListener("message", (event) => {
@@ -68,14 +68,18 @@ self.addEventListener("message", (event) => {
   // Sent on every app load while online.
   if (msg === "warm" || msg.type === "warm") {
     const urls = (msg.urls || []).filter((u) => typeof u === "string" && u.startsWith("/_next/static/"));
-    event.waitUntil(warm(urls));
+    event.waitUntil(warm(urls).then((ready) => event.source?.postMessage({ type: "offline-ready", ready: Boolean(ready) })));
+  }
+  if (msg.type === "offline-status") {
+    event.waitUntil(caches.open(PAGES).then((cache) => cache.match(OFFLINE_FALLBACK))
+      .then((hit) => event.source?.postMessage({ type: "offline-ready", ready: Boolean(hit) })));
   }
 });
 
 async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   try {
-    const res = await fetch(request);
+    const res = await fetch(request, { signal: AbortSignal.timeout(8000) });
     // Don't cache redirects to /login or error pages
     if (res.ok && !res.redirected) cache.put(request, res.clone()).catch(() => {});
     return res;
@@ -94,7 +98,7 @@ async function navigate(request) {
     // the URL and the page content in agreement, unlike serving /pos HTML at /dashboard).
     const url = new URL(request.url);
     if (url.pathname !== OFFLINE_FALLBACK && (await (await caches.open(PAGES)).match(OFFLINE_FALLBACK))) {
-      return Response.redirect(OFFLINE_FALLBACK, 302);
+      return Response.redirect(new URL(OFFLINE_FALLBACK, self.location.origin).href, 302);
     }
     return new Response(
       `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

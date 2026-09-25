@@ -113,10 +113,12 @@ export default function LoginPage() {
             </button>
           </form>
           <p className="mt-4 text-center text-sm text-slate-500">
-            No account?{" "}
-            <Link href="/register" className="text-teal-700 font-medium hover:underline">
-              Register
+            <Link href="/forgot-password" className="text-teal-700 font-medium hover:underline">
+              Forgot password?
             </Link>
+          </p>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Need an account? Ask your administrator to add you.
           </p>
         </div>
       </div>

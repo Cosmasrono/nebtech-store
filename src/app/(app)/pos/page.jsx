@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCatalog, getQueuedSales, isNetworkError, queueSale, searchCatalog } from "@/lib/offline";
+import { CATALOG_EVENT, getCatalog, getQueuedSales, isNetworkError, queueSale, searchCatalog } from "@/lib/offline";
+import { priceCart } from "@/lib/discounts";
 
 const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
 export default function PosPage() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCat, setSelectedCat] = useState("all");
   const [q, setQ] = useState("");
   const [cart, setCart] = useState([]); // {productId, name, unitPrice, quantity, stock}
   const [shift, setShift] = useState(null);
@@ -17,23 +20,53 @@ export default function PosPage() {
   const [completedSale, setCompletedSale] = useState(null);
   const [promo, setPromo] = useState(null);
   const [promoCode, setPromoCode] = useState("");
+  // Discounts typed in at the till (only for users allowed to give discounts)
+  const [canDiscount, setCanDiscount] = useState(false);
+  const [discountFor, setDiscountFor] = useState(null); // productId whose discount box is open
+  const [saleDiscount, setSaleDiscount] = useState({ type: "amount", value: "" });
+  const [discountReason, setDiscountReason] = useState("");
   const [msg, setMsg] = useState(null);
   const [online, setOnline] = useState(true);
   const searchRef = useRef(null);
+  const loadVersion = useRef(0);
 
   // Online: ask the server. Offline (or the request fails): search the cached catalog.
-  const loadProducts = useCallback(async (query = "") => {
-    if (navigator.onLine) {
+  const loadProducts = useCallback(async (query = "", catId = selectedCat) => {
+    const version = ++loadVersion.current;
+    const cached = await getCatalog().catch(() => []);
+    const showCached = () => {
+      if (version !== loadVersion.current) return;
+      setProducts(searchCatalog(cached, query, catId));
+      if (cached.length) setCategories([...new Map(cached.map((p) => [p.categoryId, { id: p.categoryId, name: p.category }])).values()].filter((c) => c.id));
+    };
+    if (cached.length) showCached();
+    const catParam = catId && catId !== "all" ? `&category_id=${encodeURIComponent(catId)}` : "";
+    const pending = await getQueuedSales().catch(() => []);
+    if (navigator.onLine && !pending.length) {
       try {
-        const res = await fetch(`/api/pos/products?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/pos/products?q=${encodeURIComponent(query)}${catParam}`, { signal: AbortSignal.timeout(8000), cache: "no-store" });
         if (res.ok) {
-          setProducts((await res.json()).data);
+          const data = await res.json();
+          if (version === loadVersion.current) setProducts(data.data);
+          return;
+        }
+        if (res.status === 401 || res.status === 403) {
+          if (version === loadVersion.current) {
+            setProducts([]);
+            setMsg({ ok: false, text: "Sign in with POS access to continue." });
+          }
           return;
         }
       } catch {}
     }
-    const cached = await getCatalog().catch(() => []);
-    setProducts(searchCatalog(cached, query));
+    showCached();
+  }, [selectedCat]);
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((d) => { if (d.data?.length) setCategories(d.data); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -49,14 +82,26 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
-    loadProducts();
+    loadProducts(q, selectedCat);
     fetch("/api/shifts/active").then((r) => r.json()).then((d) => setShift(d.data)).catch(() => {});
-  }, [loadProducts]);
+  }, [loadProducts]); // eslint-disable-line
 
   useEffect(() => {
-    const t = setTimeout(() => loadProducts(q), 250);
+    const t = setTimeout(() => loadProducts(q, selectedCat), 250);
     return () => clearTimeout(t);
-  }, [q, loadProducts]);
+  }, [q, selectedCat, loadProducts]);
+
+  useEffect(() => {
+    const reload = () => loadProducts(q, selectedCat);
+    window.addEventListener(CATALOG_EVENT, reload);
+    window.addEventListener("online", reload);
+    window.addEventListener("offline", reload);
+    return () => {
+      window.removeEventListener(CATALOG_EVENT, reload);
+      window.removeEventListener("online", reload);
+      window.removeEventListener("offline", reload);
+    };
+  }, [q, selectedCat, loadProducts]);
 
   function addToCart(p) {
     setCart((c) => {
@@ -78,12 +123,46 @@ export default function PosPage() {
     );
   }
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0), [cart]);
-  const discount = useMemo(() => {
-    if (!promo || subtotal < promo.minSpend) return 0;
-    return promo.type === "percentage" ? (subtotal * promo.value) / 100 : Math.min(promo.value, subtotal);
-  }, [promo, subtotal]);
-  const total = Math.max(0, subtotal - discount);
+  const priced = useMemo(
+    () => priceCart({
+      items: cart.map((i) => ({ ...i, discountPerItem: i.discount })),
+      promo,
+      manual: canDiscount ? saleDiscount : null,
+    }),
+    [cart, promo, saleDiscount, canDiscount],
+  );
+  const subtotal = priced.gross;
+  const discount = priced.discountAmount;
+  const total = priced.total;
+  const handDiscount = priced.itemDiscount + priced.manualDiscount;
+
+  // Can this user give discounts? Remembered on the device so it still works offline.
+  useEffect(() => {
+    try { setCanDiscount(localStorage.getItem("nbt-can-discount") === "1"); } catch {}
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.user) return;
+        const ok = d.user.roles.some((r) => ["owner", "super_admin"].includes(r)) || d.user.permissions.includes("give_discounts");
+        setCanDiscount(ok);
+        try { localStorage.setItem("nbt-can-discount", ok ? "1" : "0"); } catch {}
+      })
+      .catch(() => {});
+  }, []);
+
+  // A new sale starts without discounts.
+  useEffect(() => {
+    if (cart.length) return;
+    setSaleDiscount({ type: "amount", value: "" });
+    setDiscountReason("");
+    setDiscountFor(null);
+  }, [cart.length]);
+
+  function setItemDiscount(productId, value) {
+    setCart((c) => c.map((i) => (i.productId === productId
+      ? { ...i, discount: Math.min(i.unitPrice, Math.max(0, Number(value) || 0)) }
+      : i)));
+  }
 
   async function applyPromo() {
     if (!promoCode.trim()) return;
@@ -111,7 +190,7 @@ export default function PosPage() {
           <input
             ref={searchRef}
             className="input"
-            placeholder="Search name, SKU or scan barcode…"
+            placeholder="Search crop & animal inputs, active ingredients (e.g. Glyphosate, Oxytet), SKU…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             autoFocus
@@ -120,6 +199,34 @@ export default function PosPage() {
             {shift ? "Close shift" : "Open shift"}
           </button>
         </div>
+
+        {/* Agrovet Category Pills */}
+        {categories.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setSelectedCat("all")}
+              className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition ${
+                selectedCat === "all" ? "bg-teal-700 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              All Items
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedCat(c.id)}
+                className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition ${
+                  selectedCat === c.id ? "bg-teal-700 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {msg && (
           <div className={`text-sm rounded-lg px-3 py-2 ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
             {msg.text}
@@ -131,17 +238,38 @@ export default function PosPage() {
               key={p.id}
               onClick={() => addToCart(p)}
               disabled={p.stock <= 0}
-              className="card p-3 text-left hover:border-teal-500 hover:shadow transition disabled:opacity-40"
+              className="card p-3 text-left hover:border-teal-500 hover:shadow transition disabled:opacity-40 flex flex-col justify-between"
             >
-              <div className="text-sm font-medium leading-tight line-clamp-2">{p.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">{p.sku}</div>
-              <div className="mt-2 flex items-center justify-between">
+              <div>
+                <div className="flex items-start justify-between gap-1">
+                  <div className="text-sm font-semibold leading-tight line-clamp-2 text-slate-800">{p.name}</div>
+                  {p.prescriptionRequired && (
+                    <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200" title="Prescription / POM required">
+                      POM
+                    </span>
+                  )}
+                </div>
+                {p.genericName && (
+                  <div className="text-[11px] text-slate-500 italic truncate mt-0.5" title={p.genericName}>
+                    {p.genericName}
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {p.packSize && (
+                    <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">
+                      {p.packSize}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-slate-400">{p.sku}</span>
+                </div>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
                 <span className="font-bold text-teal-700 text-sm">{fmt(p.sellingPrice)}</span>
                 <span className={`badge ${p.stock <= 5 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{p.stock}</span>
               </div>
             </button>
           ))}
-          {!products.length && <div className="col-span-full text-slate-400 text-sm py-8 text-center">No products found.</div>}
+          {!products.length && <div className="col-span-full text-slate-400 text-sm py-8 text-center">No products found in this category.</div>}
         </div>
       </div>
 
@@ -156,10 +284,23 @@ export default function PosPage() {
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {cart.map((i) => (
-              <div key={i.productId} className="px-4 py-2.5 flex items-center gap-2">
+              <div key={i.productId} className="px-4 py-2.5 space-y-1.5">
+              <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{i.name}</div>
-                  <div className="text-xs text-slate-400">{fmt(i.unitPrice)} each</div>
+                  <div className="text-xs text-slate-400">
+                    {i.discount > 0 ? (
+                      <><span className="line-through">{fmt(i.unitPrice)}</span> <span className="text-emerald-600 font-medium">{fmt(i.unitPrice - i.discount)}</span> each</>
+                    ) : (
+                      <>{fmt(i.unitPrice)} each</>
+                    )}
+                    {canDiscount && (
+                      <button type="button" className="ml-2 text-teal-700 hover:underline"
+                        onClick={() => setDiscountFor(discountFor === i.productId ? null : i.productId)}>
+                        {i.discount > 0 ? "Edit discount" : "Discount"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button className="w-7 h-7 rounded bg-slate-100 hover:bg-slate-200" onClick={() => setQty(i.productId, i.quantity - 1)}>−</button>
@@ -170,7 +311,26 @@ export default function PosPage() {
                   />
                   <button className="w-7 h-7 rounded bg-slate-100 hover:bg-slate-200" onClick={() => setQty(i.productId, i.quantity + 1)}>+</button>
                 </div>
-                <div className="w-24 text-right text-sm font-semibold">{fmt(i.unitPrice * i.quantity)}</div>
+                <div className="w-24 text-right text-sm font-semibold">{fmt((i.unitPrice - (i.discount || 0)) * i.quantity)}</div>
+              </div>
+              {canDiscount && discountFor === i.productId && (
+                <div className="flex items-center gap-2 text-xs bg-slate-50 rounded-lg px-2 py-1.5">
+                  <span className="text-slate-500">KSh off each:</span>
+                  <input type="number" min="0" max={i.unitPrice} step="1" autoFocus
+                    className="w-24 border border-slate-200 rounded px-2 py-1 text-sm"
+                    value={i.discount || ""} placeholder="0"
+                    onChange={(e) => setItemDiscount(i.productId, e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && setDiscountFor(null)} />
+                  {[5, 10].map((pct) => (
+                    <button key={pct} type="button" className="px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100"
+                      onClick={() => setItemDiscount(i.productId, Math.round(i.unitPrice * pct) / 100)}>{pct}%</button>
+                  ))}
+                  {i.discount > 0 && (
+                    <button type="button" className="text-rose-600 hover:underline" onClick={() => setItemDiscount(i.productId, 0)}>Remove</button>
+                  )}
+                  <button type="button" className="ml-auto text-slate-500 hover:underline" onClick={() => setDiscountFor(null)}>Done</button>
+                </div>
+              )}
               </div>
             ))}
             {!cart.length && <div className="px-4 py-10 text-center text-slate-400 text-sm">Tap a product to start a sale.</div>}
@@ -181,10 +341,40 @@ export default function PosPage() {
               <input className="input !py-1.5" placeholder="Promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} />
               <button className="btn-secondary !py-1.5" onClick={applyPromo}>Apply</button>
             </div>
+            {canDiscount && cart.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <input type="number" min="0" step="1" className="input !py-1.5" placeholder="Discount on whole sale"
+                    value={saleDiscount.value}
+                    onChange={(e) => setSaleDiscount({ ...saleDiscount, value: e.target.value })} />
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden shrink-0 text-xs font-semibold">
+                    {[["amount", "KSh"], ["percent", "%"]].map(([t, label]) => (
+                      <button key={t} type="button"
+                        className={`px-3 ${saleDiscount.type === t ? "bg-teal-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                        onClick={() => setSaleDiscount({ ...saleDiscount, type: t })}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                {saleDiscount.type === "percent" && Number(saleDiscount.value) > 100 && (
+                  <div className="text-xs text-rose-600">A discount can&apos;t be more than 100%.</div>
+                )}
+                {handDiscount > 0 && (
+                  <input className="input !py-1.5 text-sm" placeholder="Reason for discount (optional)"
+                    value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} />
+                )}
+              </div>
+            )}
             <Row label="Subtotal" value={fmt(subtotal)} />
-            {discount > 0 && <Row label={`Discount (${promo?.name})`} value={`− ${fmt(discount)}`} className="text-emerald-600" />}
+            {priced.itemDiscount > 0 && <Row label="Item discounts" value={`− ${fmt(priced.itemDiscount)}`} className="text-emerald-600" />}
+            {priced.promoDiscount > 0 && <Row label={`Promo (${promo?.name})`} value={`− ${fmt(priced.promoDiscount)}`} className="text-emerald-600" />}
+            {priced.manualDiscount > 0 && (
+              <Row label={`Sale discount${saleDiscount.type === "percent" ? ` (${Math.min(100, Number(saleDiscount.value))}%)` : ""}`}
+                value={`− ${fmt(priced.manualDiscount)}`} className="text-emerald-600" />
+            )}
             <Row label="Total" value={fmt(total)} className="text-lg font-bold" />
-            <button className="btn-amber w-full !py-3 text-base" disabled={!cart.length} onClick={() => setShowPayModal(true)}>
+            <button className="btn-amber w-full !py-3 text-base"
+              disabled={!cart.length || (saleDiscount.type === "percent" && Number(saleDiscount.value) > 100)}
+              onClick={() => setShowPayModal(true)}>
               Charge {fmt(total)}
             </button>
           </div>
@@ -245,8 +435,13 @@ export default function PosPage() {
                 productId: i.productId,
                 quantity: i.quantity,
                 unitPrice: i.unitPrice,
-                lineTotal: i.unitPrice * i.quantity,
+                discountPerItem: i.discount || 0,
+                lineTotal: (i.unitPrice - (i.discount || 0)) * i.quantity,
               })),
+              ...(canDiscount && Number(saleDiscount.value) > 0 && {
+                saleDiscount: { type: saleDiscount.type, value: Number(saleDiscount.value) },
+              }),
+              ...(handDiscount > 0 && discountReason.trim() && { discountReason: discountReason.trim() }),
               subtotal,
               discountAmount: discount,
               promotionId: promo?.id || null,
@@ -272,7 +467,9 @@ export default function PosPage() {
               loadProducts(q);
             };
 
-            if (!navigator.onLine && payment.primaryPaymentMethod !== "mpesa") {
+            const canSaveOffline = ["cash", "card"].includes(payment.primaryPaymentMethod);
+            if (!navigator.onLine) {
+              if (!canSaveOffline) throw new Error("M-Pesa and debt sales need an internet connection.");
               await saveOffline();
               return;
             }
@@ -282,9 +479,10 @@ export default function PosPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
+                signal: AbortSignal.timeout(15000),
               });
             } catch (e) {
-              if (isNetworkError(e) && payment.primaryPaymentMethod !== "mpesa") {
+              if (isNetworkError(e) && canSaveOffline) {
                 await saveOffline();
               } else {
                 setMsg({ ok: false, text: "Connection lost while recording the sale. Check Sales before retrying." });
@@ -292,7 +490,11 @@ export default function PosPage() {
               }
               return;
             }
-            const data = await res.json();
+            if (res.status >= 500 && canSaveOffline) {
+              await saveOffline();
+              return;
+            }
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
               setCart([]);
               setPromo(null);
@@ -445,6 +647,16 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
   const [method, setMethod] = useState("cash");
   const [cashPaid, setCashPaid] = useState("");
   const [phone, setPhone] = useState("");
+  const [customers, setCustomers] = useState([]);
+  const [customerId, setCustomerId] = useState("");
+  const [creditDueDate, setCreditDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split("T")[0];
+  });
+  const [loanNotes, setLoanNotes] = useState("");
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
   const [busy, setBusy] = useState(false);
   // idle | sending | awaiting | paid | failed | timeout
   const [mpesaPhase, setMpesaPhase] = useState("idle");
@@ -452,6 +664,16 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
   const [countdown, setCountdown] = useState(0);
   const [redirectIn, setRedirectIn] = useState(0);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/customers")
+      .then((r) => r.json())
+      .then((d) => setCustomers(d.data || []))
+      .catch(() => {});
+  }, []);
+
+  const selectedCust = customers.find((c) => c.id === customerId);
+  const availCredit = selectedCust ? Math.max(0, (selectedCust.creditLimit || 0) - (selectedCust.currentCreditBalance || 0)) : 0;
 
   // After failure/timeout, count down and auto-route to /mpesa-payments.
   // The Resend button cancels the redirect (see payMpesa).
@@ -473,18 +695,73 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
 
   const change = Math.max(0, Number(cashPaid || 0) - total);
 
+  async function confirmPayment(payment) {
+    setError("");
+    setBusy(true);
+    try {
+      await onConfirm(payment);
+    } catch (error) {
+      setError(error.message || "Sale could not be saved. Your cart is still available; please retry.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function payCash() {
     if (Number(cashPaid || 0) < total) {
       setError("Cash paid is less than the total.");
       return;
     }
-    setBusy(true);
-    await onConfirm({
+    await confirmPayment({
       primaryPaymentMethod: "cash",
       cashPaid: Number(cashPaid),
       changeAmount: change,
+      customerId: customerId || undefined,
+      customerName: selectedCust?.name,
+      customerPhone: selectedCust?.phone || undefined,
     });
-    setBusy(false);
+  }
+
+  async function addCustomer() {
+    setError("");
+    const name = newCustomer.name.trim();
+    if (!name || !newCustomer.phone.trim()) return setError("Enter the customer's name and phone number.");
+    const res = await fetch("/api/customers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, phone: newCustomer.phone.trim() || null, customerType: "registered" }),
+    }).catch(() => null);
+    const d = await res?.json().catch(() => ({}));
+    if (!res?.ok) return setError(d?.message || "Couldn't add the customer.");
+    setCustomers((list) => [...list, d.data].sort((a, b) => a.name.localeCompare(b.name)));
+    setCustomerId(d.data.id);
+    if (d.data.phone && !phone) setPhone(d.data.phone);
+    setAddingCustomer(false);
+    setNewCustomer({ name: "", phone: "" });
+  }
+
+  async function payDebt() {
+    setError("");
+    if (!navigator.onLine) {
+      setError("Debt sales need an internet connection.");
+      return;
+    }
+    if (!customerId || !selectedCust) {
+      setError("Choose the customer who will owe this amount (or add them).");
+      return;
+    }
+    if (selectedCust.creditLimit > 0 && total > availCredit) {
+      setError(`Debt limit reached. ${selectedCust.name} can owe up to ${fmt(availCredit)} more, but this sale is ${fmt(total)}.`);
+      return;
+    }
+    await confirmPayment({
+      primaryPaymentMethod: "credit",
+      customerId,
+      customerName: selectedCust.name,
+      customerPhone: selectedCust.phone || undefined,
+      creditDueDate,
+      loanNotes: loanNotes.trim() || undefined,
+    });
   }
 
   async function pollUntilResolved(txnId) {
@@ -500,6 +777,8 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
           primaryPaymentMethod: "mpesa",
           mpesaPaid: total,
           customerPhone: phone,
+          customerId: customerId || undefined,
+          customerName: selectedCust?.name,
           mpesaTransactionId: txnId,
         });
         return;
@@ -542,9 +821,13 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
   }
 
   async function payCard() {
-    setBusy(true);
-    await onConfirm({ primaryPaymentMethod: "card", cardPaid: total });
-    setBusy(false);
+    await confirmPayment({
+      primaryPaymentMethod: "card",
+      cardPaid: total,
+      customerId: customerId || undefined,
+      customerName: selectedCust?.name,
+      customerPhone: selectedCust?.phone || undefined,
+    });
   }
 
   const mpesaResolved = mpesaPhase === "failed" || mpesaPhase === "timeout";
@@ -552,16 +835,69 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
   return (
     <Modal title={`Take payment — ${fmt(total)}`} onClose={onClose}>
       {error && <div className="mb-3 text-sm rounded-lg bg-rose-50 text-rose-700 px-3 py-2">{error}</div>}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {["cash", "mpesa", "card"].map((m) => (
+
+      {/* Customer */}
+      <div className="mb-4 pb-3 border-b border-slate-100">
+        <label className="label flex justify-between items-center text-xs">
+          <span>Customer {method === "credit" ? <span className="text-rose-600 font-bold">*</span> : "(Optional)"}</span>
+          {selectedCust && selectedCust.creditLimit > 0 && (
+            <span className="text-teal-700 font-semibold">
+              Can still owe: {fmt(availCredit)}
+            </span>
+          )}
+        </label>
+        {!addingCustomer ? (
+          <div className="flex gap-2">
+            <select
+              className="input text-sm !py-1.5"
+              value={customerId}
+              onChange={(e) => {
+                setCustomerId(e.target.value);
+                const c = customers.find((cust) => cust.id === e.target.value);
+                if (c?.phone && !phone) setPhone(c.phone);
+              }}
+            >
+              <option value="">Walk-in customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.phone ? `(${c.phone})` : ""} {c.currentCreditBalance > 0 ? `· owes ${fmt(c.currentCreditBalance)}` : ""}
+                </option>
+              ))}
+            </select>
+            {online && (
+              <button type="button" className="text-xs text-teal-700 font-semibold whitespace-nowrap hover:underline" onClick={() => setAddingCustomer(true)}>
+                + New
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <input className="input text-sm !py-1.5" placeholder="Customer name *" value={newCustomer.name}
+              onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} autoFocus />
+            <input className="input text-sm !py-1.5" placeholder="Phone 07XX… *" value={newCustomer.phone}
+              onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })} />
+            <button type="button" className="btn-primary text-xs !py-1.5" onClick={addCustomer}>Save customer</button>
+            <button type="button" className="text-xs text-slate-500 hover:underline" onClick={() => setAddingCustomer(false)}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-4 gap-1.5 mb-4">
+        {[
+          { id: "cash", label: "Cash" },
+          { id: "mpesa", label: "M-Pesa" },
+          { id: "credit", label: "Debt" },
+          { id: "card", label: "Card" },
+        ].map((m) => (
           <button
-            key={m}
-            onClick={() => setMethod(m)}
-            className={`rounded-lg border py-2 text-sm font-medium capitalize ${
-              method === m ? "border-teal-600 bg-teal-50 text-teal-700" : "border-slate-200 hover:bg-slate-50"
+            key={m.id}
+            disabled={busy || (!online && ["mpesa", "credit"].includes(m.id))}
+            onClick={() => setMethod(m.id)}
+            className={`rounded-lg border py-2 text-xs font-semibold ${
+              method === m.id ? "border-teal-600 bg-teal-50 text-teal-700 shadow-sm" : "border-slate-200 hover:bg-slate-50 text-slate-700"
             }`}
           >
-            {m === "mpesa" ? "M-Pesa" : m}
+            {m.label}
           </button>
         ))}
       </div>
@@ -577,6 +913,42 @@ function PaymentModal({ total, online, onClose, onConfirm, onMpesaFailed }) {
             <span className="font-bold text-emerald-600">{fmt(change)}</span>
           </div>
           <button className="btn-primary w-full" onClick={payCash} disabled={busy}>Complete sale</button>
+        </div>
+      )}
+
+      {method === "credit" && (
+        <div className="space-y-3">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1">
+            <div className="font-semibold text-amber-900">Record as debt (pay later)</div>
+            <div className="text-amber-700">
+              {selectedCust ? (
+                <>
+                  <b>{selectedCust.name}</b> takes these products now and pays later. The products are saved on the debt.
+                  {selectedCust.currentCreditBalance > 0 && <> Already owes <b>{fmt(selectedCust.currentCreditBalance)}</b>.</>}
+                  {!selectedCust.canBuyOnCredit && <div className="mt-1">Not yet approved to buy on debt: a manager&apos;s account is needed to complete this.</div>}
+                </>
+              ) : (
+                <span className="text-rose-600 font-semibold">Choose the customer above, or add a new one.</span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Pay by</label>
+            <input type="date" className="input" value={creditDueDate}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setCreditDueDate(e.target.value)} />
+          </div>
+
+          <input className="input text-sm" placeholder="Note (optional)" value={loanNotes} onChange={(e) => setLoanNotes(e.target.value)} />
+
+          <button
+            className="btn-amber w-full !py-2.5 font-semibold"
+            onClick={payDebt}
+            disabled={busy || !customerId || !online}
+          >
+            Record as debt ({fmt(total)})
+          </button>
         </div>
       )}
 

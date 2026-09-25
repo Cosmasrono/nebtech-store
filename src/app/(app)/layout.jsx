@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { getAuthUser, userHasRole } from "@/lib/auth";
+import { getAuthUser, userHasRole, isAdminEmail } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 import ToastProvider from "@/components/ToastProvider";
 import TopProgress from "@/components/TopProgress";
@@ -9,10 +9,14 @@ import OfflineSync from "@/components/OfflineSync";
 export default async function AppLayout({ children }) {
   const authUser = await getAuthUser();
   if (!authUser) redirect("/login");
+  const isAdmin = isAdminEmail(authUser.email) || userHasRole(authUser, "owner", "super_admin");
   const session = {
     name: authUser.name,
-    isAdmin: userHasRole(authUser, "owner", "super_admin"),
-    permissions: [...new Set(authUser.roles.flatMap((r) => (r.permissions || []).map((p) => p.name)))],
+    email: authUser.email,
+    isAdmin,
+    permissions: isAdmin
+      ? ["*"]
+      : [...new Set(authUser.roles.flatMap((r) => (r.permissions || []).map((p) => p.name)))],
   };
 
   return (

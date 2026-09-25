@@ -15,6 +15,6 @@ function rand(len = 4) {
 export const generateReceiptNumber = () => `RCP-${datePart()}-${rand(5)}`;
 export const generatePoNumber = () => `PO-${datePart()}-${rand(4)}`;
 export const generateInvoiceNumber = () => `INV-${datePart()}-${rand(4)}`;
-export const generateLoanNumber = () => `LN-${datePart()}-${rand(4)}`;
+export const generateLoanNumber = () => `DBT-${datePart()}-${rand(4)}`;
 export const generateReturnReference = () => `RTN-${datePart()}-${rand(4)}`;
 export const generateOrderNumber = () => `DO-${datePart()}-${rand(4)}`;

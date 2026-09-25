@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   QUEUE_EVENT,
+  getCatalogSavedAt,
   getQueuedSales,
   removeQueuedSale,
   saveCatalog,
@@ -19,6 +20,8 @@ export default function OfflineSync() {
   const [syncing, setSyncing] = useState(false);
   const [note, setNote] = useState("");
   const [showFailed, setShowFailed] = useState(false);
+  const [catalogReady, setCatalogReady] = useState(false);
+  const [shellReady, setShellReady] = useState(false);
 
   const refreshQueue = useCallback(() => {
     getQueuedSales().then(setQueue).catch(() => {});
@@ -26,8 +29,12 @@ export default function OfflineSync() {
 
   const refreshCatalog = useCallback(async () => {
     try {
-      const res = await fetch("/api/pos/products?all=1", { cache: "no-store" });
-      if (res.ok) await saveCatalog((await res.json()).data);
+      if (!navigator.onLine || (await getQueuedSales()).length) return;
+      const res = await fetch("/api/pos/products?all=1", { cache: "no-store", signal: AbortSignal.timeout(10000) });
+      if (res.ok) {
+        await saveCatalog((await res.json()).data);
+        setCatalogReady(Boolean(await getCatalogSavedAt()));
+      }
     } catch {}
   }, []);
 
@@ -39,18 +46,26 @@ export default function OfflineSync() {
     if (!r) return;
     if (r.authRequired) setNote("Sign in again to upload offline sales.");
     else if (r.synced) setNote(`${r.synced} offline sale${r.synced > 1 ? "s" : ""} uploaded.`);
-    if (r.synced) refreshCatalog(); // stock levels changed on the server
+    await refreshCatalog(); // refresh after uploads, never alongside them
   }, [refreshCatalog]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
     refreshQueue();
+    getCatalogSavedAt().then((at) => setCatalogReady(Boolean(at))).catch(() => {});
+    navigator.storage?.persist?.().catch(() => {});
+
+    const onWorkerMessage = (event) => {
+      if (event.data?.type === "offline-ready") setShellReady(event.data.ready);
+    };
+    navigator.serviceWorker?.addEventListener("message", onWorkerMessage);
 
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker
         .register("/sw.js")
         .then(() => navigator.serviceWorker.ready)
         .then((reg) => {
+          reg.active?.postMessage({ type: "offline-status" });
           if (!navigator.onLine) return;
           // Files this page loaded before the service worker took control aren't cached yet.
           const urls = performance
@@ -62,23 +77,25 @@ export default function OfflineSync() {
         .catch(() => {});
     }
 
-    refreshCatalog();
     sync();
 
-    const goOnline = () => { setOnline(true); sync(); };
+    const goOnline = () => {
+      setOnline(true);
+      sync();
+      navigator.serviceWorker?.controller?.postMessage({ type: "warm" });
+    };
     const goOffline = () => setOnline(false);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     window.addEventListener(QUEUE_EVENT, refreshQueue);
     // Retry periodically too — navigator.onLine can say "online" while the internet is actually down.
     const t = setInterval(() => { sync(); }, 60_000);
-    const c = setInterval(refreshCatalog, 10 * 60_000);
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
       window.removeEventListener(QUEUE_EVENT, refreshQueue);
       clearInterval(t);
-      clearInterval(c);
+      navigator.serviceWorker?.removeEventListener("message", onWorkerMessage);
     };
   }, [refreshQueue, refreshCatalog, sync]);
 
@@ -91,8 +108,6 @@ export default function OfflineSync() {
   const pending = queue.filter((q) => q.status === "pending");
   const failed = queue.filter((q) => q.status === "failed");
 
-  if (online && !queue.length && !note) return null;
-
   return (
     <>
       <div
@@ -103,6 +118,8 @@ export default function OfflineSync() {
         <span className="font-semibold">
           {online ? "● Online" : "● Offline — cash and card sales are saved on this device"}
         </span>
+        <span>{catalogReady && shellReady ? "Ready for offline sales" : catalogReady ? "Products saved · offline page not ready yet" : "Open POS online to prepare offline sales"}</span>
+        {process.env.NODE_ENV !== "production" && <span>Offline reload requires a production build.</span>}
         {pending.length > 0 && (
           <span>
             {pending.length} sale{pending.length > 1 ? "s" : ""} waiting to upload

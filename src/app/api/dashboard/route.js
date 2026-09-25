@@ -54,9 +54,9 @@ export async function GET() {
       where: { ...saleScope, status: "completed", createdAt: { gte: start14 } },
       select: { createdAt: true, totalAmount: true },
     }),
-    prisma.sale.findMany({
+    prisma.sale.aggregate({
       where: { ...saleScope, status: "completed", createdAt: { gte: start30 } },
-      select: { cashPaid: true, mpesaPaid: true, cardPaid: true, changeAmount: true },
+      _sum: { cashPaid: true, mpesaPaid: true, cardPaid: true, changeAmount: true },
     }),
     prisma.saleItem.groupBy({
       by: ["productId"],
@@ -65,13 +65,11 @@ export async function GET() {
       orderBy: { _sum: { quantity: "desc" } },
       take: 5,
     }),
-    prisma.saleItem.findMany({
+    // Totals per product; grouped into categories below (far less data than every sale line).
+    prisma.saleItem.groupBy({
+      by: ["productId"],
       where: { sale: { ...saleScope, status: "completed", createdAt: { gte: start30 } } },
-      select: {
-        lineTotal: true,
-        quantity: true,
-        product: { select: { category: { select: { id: true, name: true } } } },
-      },
+      _sum: { quantity: true, lineTotal: true },
     }),
   ]);
 
@@ -92,24 +90,22 @@ export async function GET() {
   }
 
   // Payment method breakdown (last 30 days)
-  let cashNet = 0, mpesa = 0, card = 0;
-  for (const s of paymentBreakdown) {
-    cashNet += Number(s.cashPaid || 0) - Number(s.changeAmount || 0);
-    mpesa += Number(s.mpesaPaid || 0);
-    card += Number(s.cardPaid || 0);
-  }
+  const ps = paymentBreakdown._sum || {};
+  const cashNet = Number(ps.cashPaid || 0) - Number(ps.changeAmount || 0);
+  const mpesa = Number(ps.mpesaPaid || 0);
+  const card = Number(ps.cardPaid || 0);
   const payments = [
     { label: "Cash", value: Math.max(0, cashNet), color: "#10b981" },
     { label: "M-Pesa", value: mpesa, color: "#0d9488" },
     { label: "Card", value: card, color: "#6366f1" },
   ];
 
-  // Top products - hydrate names
-  const topProductIds = topProductRows.map((r) => r.productId);
-  const topProductInfo = topProductIds.length
+  // Names for top products + categories for the pie chart, in one lookup
+  const soldProductIds = categoryItems.map((r) => r.productId);
+  const topProductInfo = soldProductIds.length
     ? await prisma.product.findMany({
-        where: { id: { in: topProductIds } },
-        select: { id: true, name: true, sku: true },
+        where: { id: { in: soldProductIds } },
+        select: { id: true, name: true, sku: true, category: { select: { name: true } } },
       })
     : [];
   const infoMap = Object.fromEntries(topProductInfo.map((p) => [p.id, p]));
@@ -125,10 +121,10 @@ export async function GET() {
   const CAT_COLORS = ["#0d9488", "#6366f1", "#f59e0b", "#ec4899", "#10b981", "#0ea5e9", "#a855f7", "#f43f5e"];
   const catMap = new Map();
   for (const it of categoryItems) {
-    const name = it.product?.category?.name || "Uncategorized";
+    const name = infoMap[it.productId]?.category?.name || "Uncategorized";
     const prev = catMap.get(name) || { label: name, value: 0, quantity: 0 };
-    prev.value += Number(it.lineTotal || 0);
-    prev.quantity += Number(it.quantity || 0);
+    prev.value += Number(it._sum.lineTotal || 0);
+    prev.quantity += Number(it._sum.quantity || 0);
     catMap.set(name, prev);
   }
   const categories = [...catMap.values()]

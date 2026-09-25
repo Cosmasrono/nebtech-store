@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { normalizePhone } from "@/lib/mpesa";
 
 export async function GET(req) {
   const { error } = await requireAuth();
@@ -9,7 +10,12 @@ export async function GET(req) {
   const customers = await prisma.customer.findMany({
     where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }] } : {},
     orderBy: { name: "asc" },
-    take: 50,
+    // Dropdowns in the POS and Loans pages list customers, so return enough of them.
+    take: q ? 50 : 2000,
+    select: {
+      id: true, name: true, phone: true, email: true, customerType: true,
+      canBuyOnCredit: true, creditLimit: true, currentCreditBalance: true,
+    },
   });
   return Response.json({ data: customers });
 }
@@ -19,11 +25,16 @@ export async function POST(req) {
   if (error) return error;
   const b = await req.json();
   if (!b.name) return Response.json({ message: "Name is required." }, { status: 422 });
+  // Phone is unique; in MongoDB that allows only one customer without a phone, so require it.
+  const phone = b.phone ? normalizePhone(b.phone) : "";
+  if (!/^254[17]\d{8}$/.test(phone)) {
+    return Response.json({ message: "Enter the customer's phone number (07XX XXX XXX)." }, { status: 422 });
+  }
   try {
     const customer = await prisma.customer.create({
       data: {
         name: b.name,
-        phone: b.phone || null,
+        phone,
         email: b.email || null,
         address: b.address || null,
         customerType: b.customerType || "walk_in",

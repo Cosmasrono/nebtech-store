@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-offline-check/
 /out/
 
 # production

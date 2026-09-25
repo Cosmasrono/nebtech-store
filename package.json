@@ -11,7 +11,8 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "seed:agrovet": "node --env-file=.env prisma/seed-agrovet.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -29,6 +30,7 @@
     "groq-sdk": "^0.13.0",
     "jose": "^5.9.6",
     "next": "^15.3.0",
+    "nodemailer": "^6.9.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

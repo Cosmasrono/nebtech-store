@@ -5,6 +5,7 @@ export async function GET(req) {
   const { user, error } = await requireAuth("process_sales");
   if (error) return error;
   const { searchParams } = new URL(req.url);
+  const categoryId = searchParams.get("category_id");
   const q = searchParams.get("q") || "";
   // ?all=1 returns the whole active catalog so the POS can keep selling offline
   const all = searchParams.get("all") === "1";
@@ -13,10 +14,13 @@ export async function GET(req) {
     where: {
       isActive: true,
       ...(user.branchId && { branchStocks: { some: { branchId: user.branchId } } }),
+      ...(categoryId && { categoryId }),
       ...(q && {
         OR: [
           { name: { contains: q, mode: "insensitive" } },
           { sku: { contains: q, mode: "insensitive" } },
+          { genericName: { contains: q, mode: "insensitive" } },
+          { brandName: { contains: q, mode: "insensitive" } },
           { barcode: q },
         ],
       }),
@@ -37,6 +41,11 @@ export async function GET(req) {
       barcode: p.barcode,
       sellingPrice: p.sellingPrice,
       category: p.category?.name,
+      categoryId: p.categoryId,
+      genericName: p.genericName,
+      brandName: p.brandName,
+      packSize: p.packSize,
+      prescriptionRequired: p.prescriptionRequired,
       stock: user.branchId
         ? p.branchStocks.reduce((s, b) => s + b.quantityInStock, 0)
         : p.quantityInStock,

@@ -16,6 +16,7 @@ const PERMISSIONS = [
   ["view_financial_reports", "View Financial Reports"], ["view_sales_reports", "View Sales Reports"],
   ["view_inventory_reports", "View Inventory Reports"], ["manage_users", "Manage Users"],
   ["manage_roles", "Manage Roles"], ["change_settings", "Change Settings"],
+  ["manage_loans", "Manage Debts & Record Payments"],
 ];
 
 const ROLE_PERMS = {
@@ -26,7 +27,7 @@ const ROLE_PERMS = {
     "manage_products", "view_inventory", "receive_stock", "adjust_stock", "perform_stock_take",
     "create_purchase_order", "approve_purchase_order", "manage_suppliers", "record_supplier_payment",
     "record_expense", "approve_expense", "view_expenses", "open_shift", "close_shift",
-    "view_financial_reports", "view_sales_reports", "view_inventory_reports",
+    "view_financial_reports", "view_sales_reports", "view_inventory_reports", "manage_loans",
   ],
   cashier: ["process_sales", "view_own_sales", "view_inventory", "open_shift", "close_shift", "record_expense"],
 };
@@ -69,21 +70,24 @@ async function main() {
     });
   }
 
-  // Owner user
-  const email = "owner@nebtech.store";
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (!existing) {
+  // Owner user — only on a fresh database. Never use a fixed default password:
+  // set SEED_OWNER_EMAIL / SEED_OWNER_PASSWORD, or a random password is generated and printed once.
+  const userCount = await prisma.user.count();
+  if (userCount === 0) {
+    const email = (process.env.SEED_OWNER_EMAIL || "owner@nebtech.store").toLowerCase();
+    const password = process.env.SEED_OWNER_PASSWORD || require("node:crypto").randomBytes(12).toString("base64url");
     await prisma.user.create({
       data: {
         name: "System Owner",
         email,
-        password: await bcrypt.hash("password", 10),
+        password: await bcrypt.hash(password, 10),
         isActive: true,
         branchId: branch.id,
         roleIds: [roleMap.owner],
       },
     });
-    console.log(`Owner created: ${email} / password`);
+    console.log(`Owner created: ${email}`);
+    if (!process.env.SEED_OWNER_PASSWORD) console.log(`Temporary password (shown once, change it after signing in): ${password}`);
   }
 
   // Categories
