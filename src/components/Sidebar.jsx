@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { clearOfflineData, getQueuedSales, syncQueuedSales } from "@/lib/offline";
@@ -38,6 +39,10 @@ const NAV = [
 export default function Sidebar({ user }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [open, setOpen] = useState(false); // mobile menu
+
+  // Close the mobile menu after navigating.
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   const canSee = (item) => {
     if (user?.isAdmin || user?.permissions?.includes("*")) return true;
@@ -67,13 +72,34 @@ export default function Sidebar({ user }) {
     router.refresh();
   }
 
+  const brand = (
+    <>
+      <span>💄 NebTech</span> <span className="text-pink-400">Beauty</span>
+    </>
+  );
+
   return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-slate-900 text-slate-300 flex flex-col z-30">
-      <div className="px-5 py-4 border-b border-slate-800">
-        <div className="text-lg font-bold text-white flex items-center gap-1.5">
-          <span>💄 NebTech</span> <span className="text-pink-400">Beauty</span>
+    <>
+    {/* Phones and tablets: a top bar with a menu button; the sidebar slides in over the page. */}
+    <header className="lg:hidden sticky top-0 z-30 h-14 bg-slate-900 text-white flex items-center gap-3 px-4">
+      <button type="button" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}
+        className="text-2xl leading-none w-9 h-9 grid place-items-center rounded-lg hover:bg-slate-800">
+        ☰
+      </button>
+      <div className="font-bold flex items-center gap-1.5">{brand}</div>
+    </header>
+    {open && <div className="lg:hidden fixed inset-0 z-40 bg-slate-900/60" aria-hidden="true" onClick={() => setOpen(false)} />}
+
+    <aside className={`fixed inset-y-0 left-0 w-64 lg:w-60 bg-slate-900 text-slate-300 flex flex-col z-50 lg:z-30 transition-transform duration-200 ${
+      open ? "translate-x-0" : "-translate-x-full"
+    } lg:translate-x-0`}>
+      <div className="px-5 py-4 border-b border-slate-800 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-lg font-bold text-white flex items-center gap-1.5">{brand}</div>
+          <div className="text-xs text-slate-500 truncate">{user?.name}</div>
         </div>
-        <div className="text-xs text-slate-500 truncate">{user?.name}</div>
+        <button type="button" aria-label="Close menu" onClick={() => setOpen(false)}
+          className="lg:hidden text-slate-400 hover:text-white text-xl leading-none">✕</button>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
         {nav.map((group) => (
@@ -98,5 +124,6 @@ export default function Sidebar({ user }) {
         Sign out
       </button>
     </aside>
+    </>
   );
 }

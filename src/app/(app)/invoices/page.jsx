@@ -78,7 +78,7 @@ function InvoiceModal({ onClose, onDone, setMsg }) {
   return (
     <Modal title="New invoice" onClose={onClose} wide>
       <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div><label className="label">Customer *</label><input className="input" value={form.customerName} onChange={set("customerName")} /></div>
           <div><label className="label">Phone</label><input className="input" value={form.customerPhone} onChange={set("customerPhone")} /></div>
           <div><label className="label">Due date</label><input type="date" className="input" value={form.dueDate} onChange={set("dueDate")} /></div>

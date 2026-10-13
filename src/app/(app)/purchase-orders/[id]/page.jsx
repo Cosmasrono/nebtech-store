@@ -37,7 +37,7 @@ export default function PoDetailPage({ params }) {
         <button className="btn-secondary" onClick={() => router.push("/purchase-orders")}>Back</button>
       </div>
       <Alert msg={msg} />
-      <div className="card p-4 text-sm grid grid-cols-3 gap-4">
+      <div className="card p-4 text-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div><div className="text-slate-500">Supplier</div><div className="font-medium">{po.supplier?.name}</div></div>
         <div><div className="text-slate-500">Expected</div><div className="font-medium">{po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString("en-KE") : "—"}</div></div>
         <div><div className="text-slate-500">Total</div><div className="font-medium">{fmt(po.totalCost)}</div></div>

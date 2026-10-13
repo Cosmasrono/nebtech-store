@@ -71,7 +71,7 @@ export default function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] w-80 space-y-2">
+      <div className="fixed top-4 right-4 z-[100] w-[calc(100%-2rem)] sm:w-80 space-y-2">
         {toasts.map((t) => (
           <div key={t.id}
             className={`shadow-lg rounded-lg px-4 py-3 text-sm text-white flex items-start gap-2 ${t.ok ? "bg-emerald-600" : "bg-rose-600"}`}>

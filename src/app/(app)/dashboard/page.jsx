@@ -88,7 +88,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">Recent sales</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="table-th">Receipt</th><th className="table-th">Cashier</th><th className="table-th text-right">Total</th></tr></thead>
             <tbody>
               {stats.recentSales.map((s) => (
@@ -100,12 +100,12 @@ export default function DashboardPage() {
               ))}
               {!stats.recentSales.length && <tr><td className="table-td text-slate-400" colSpan={3}>No sales yet.</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">Low stock alerts</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="table-th">Product</th><th className="table-th text-right">In stock</th><th className="table-th text-right">Reorder at</th></tr></thead>
             <tbody>
               {stats.lowStock.map((p) => (
@@ -119,7 +119,7 @@ export default function DashboardPage() {
               ))}
               {!stats.lowStock.length && <tr><td className="table-td text-slate-400" colSpan={3}>All stocked up.</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

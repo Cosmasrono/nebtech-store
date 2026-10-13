@@ -29,6 +29,7 @@ export default function PosPage() {
   const [msg, setMsg] = useState(null);
   const [online, setOnline] = useState(true);
   const searchRef = useRef(null);
+  const cartRef = useRef(null);
   const loadVersion = useRef(0);
 
   // Search the catalog saved on this device: instant, with no server round trip per
@@ -191,8 +192,19 @@ export default function PosPage() {
     }
   }
 
+  const itemCount = cart.reduce((s, i) => s + i.quantity, 0);
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <div className={`grid grid-cols-1 lg:grid-cols-5 gap-4 ${cart.length ? "pb-20 lg:pb-0" : ""}`}>
+      {/* Phones: the cart sits below the products, so keep its total in reach. */}
+      {cart.length > 0 && (
+        <button type="button" onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="lg:hidden fixed bottom-4 inset-x-4 z-30 btn-amber !py-3 !justify-between shadow-lg">
+          <span>🛒 {itemCount} item{itemCount === 1 ? "" : "s"} · View cart</span>
+          <span>{fmt(total)}</span>
+        </button>
+      )}
+
       {/* Product grid */}
       <div className="lg:col-span-3 space-y-3">
         <div className="flex items-center gap-3">
@@ -284,8 +296,8 @@ export default function PosPage() {
       </div>
 
       {/* Cart */}
-      <div className="lg:col-span-2">
-        <div className="card sticky top-6 flex flex-col max-h-[calc(100vh-3rem)]">
+      <div className="lg:col-span-2 scroll-mt-28 lg:scroll-mt-0" ref={cartRef}>
+        <div className="card lg:sticky lg:top-6 flex flex-col lg:max-h-[calc(100vh-3rem)]">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <span className="font-semibold text-sm">Current sale</span>
             {cart.length > 0 && (
@@ -539,7 +551,7 @@ function Row({ label, value, className = "" }) {
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card w-full max-w-md p-5">
+      <div className="card w-full max-w-md p-4 sm:p-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>

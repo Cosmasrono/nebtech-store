@@ -256,26 +256,26 @@ function CreatePoModal({ onClose, onDone, setMsg }) {
                   })()}
                 </div>
               ) : (
-                <div className="grid grid-cols-12 gap-2">
-                  <input className="input col-span-4" placeholder="Product name *" value={it.newProduct.name} onChange={(e) => setNewProd(idx, "name", e.target.value)} />
-                  <input className="input col-span-2" placeholder="SKU *" value={it.newProduct.sku} onChange={(e) => setNewProd(idx, "sku", e.target.value)} />
-                  <select className="input col-span-3" value={it.newProduct.categoryId} onChange={(e) => setNewProd(idx, "categoryId", e.target.value)}>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <input className="input sm:col-span-4" placeholder="Product name *" value={it.newProduct.name} onChange={(e) => setNewProd(idx, "name", e.target.value)} />
+                  <input className="input sm:col-span-2" placeholder="SKU *" value={it.newProduct.sku} onChange={(e) => setNewProd(idx, "sku", e.target.value)} />
+                  <select className="input sm:col-span-3" value={it.newProduct.categoryId} onChange={(e) => setNewProd(idx, "categoryId", e.target.value)}>
                     <option value="">Category *</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <input type="number" step="0.01" className="input col-span-3" placeholder="Selling price *" value={it.newProduct.sellingPrice} onChange={(e) => setNewProd(idx, "sellingPrice", e.target.value)} />
+                  <input type="number" step="0.01" className="input sm:col-span-3" placeholder="Selling price *" value={it.newProduct.sellingPrice} onChange={(e) => setNewProd(idx, "sellingPrice", e.target.value)} />
 
-                  <input className="input col-span-4" placeholder="Shade / variant (e.g. 128 Warm Nude)" value={it.newProduct.genericName} onChange={(e) => setNewProd(idx, "genericName", e.target.value)} />
-                  <input className="input col-span-3" placeholder="Brand (e.g. Maybelline)" value={it.newProduct.brandName} onChange={(e) => setNewProd(idx, "brandName", e.target.value)} />
-                  <input className="input col-span-2" placeholder="Size (e.g. 30ml)" value={it.newProduct.packSize} onChange={(e) => setNewProd(idx, "packSize", e.target.value)} />
-                  <input className="input col-span-3" placeholder="Manufacturer" value={it.newProduct.manufacturer} onChange={(e) => setNewProd(idx, "manufacturer", e.target.value)} />
+                  <input className="input sm:col-span-4" placeholder="Shade / variant (e.g. 128 Warm Nude)" value={it.newProduct.genericName} onChange={(e) => setNewProd(idx, "genericName", e.target.value)} />
+                  <input className="input sm:col-span-3" placeholder="Brand (e.g. Maybelline)" value={it.newProduct.brandName} onChange={(e) => setNewProd(idx, "brandName", e.target.value)} />
+                  <input className="input sm:col-span-2" placeholder="Size (e.g. 30ml)" value={it.newProduct.packSize} onChange={(e) => setNewProd(idx, "packSize", e.target.value)} />
+                  <input className="input sm:col-span-3" placeholder="Manufacturer" value={it.newProduct.manufacturer} onChange={(e) => setNewProd(idx, "manufacturer", e.target.value)} />
                 </div>
               )}
 
-              <div className="grid grid-cols-12 gap-2">
-                <input type="number" className="input col-span-3" placeholder="Qty ordered *" value={it.quantityOrdered} onChange={(e) => setItem(idx, "quantityOrdered", e.target.value)} />
-                <input type="number" step="0.01" className="input col-span-3" placeholder="Unit cost *" value={it.unitCost} onChange={(e) => setItem(idx, "unitCost", e.target.value)} />
-                <div className="col-span-6 text-right text-sm text-slate-500 self-center">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <input type="number" className="input sm:col-span-3" placeholder="Qty ordered *" value={it.quantityOrdered} onChange={(e) => setItem(idx, "quantityOrdered", e.target.value)} />
+                <input type="number" step="0.01" className="input sm:col-span-3" placeholder="Unit cost *" value={it.unitCost} onChange={(e) => setItem(idx, "unitCost", e.target.value)} />
+                <div className="sm:col-span-6 text-right text-sm text-slate-500 self-center">
                   Line total: {fmt(Number(it.quantityOrdered || 0) * Number(it.unitCost || 0))}
                 </div>
               </div>

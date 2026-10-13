@@ -132,7 +132,7 @@ export default function AiInsightsPage() {
 
       <div className="card">
         <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">Product forecasts (next 30 days)</div>
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full">
           <thead>
             <tr>
               <th className="table-th">Product</th>
@@ -176,7 +176,7 @@ export default function AiInsightsPage() {
               </tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );

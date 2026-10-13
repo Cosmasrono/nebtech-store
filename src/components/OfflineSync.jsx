@@ -115,7 +115,7 @@ export default function OfflineSync() {
   return (
     <>
       <div
-        className={`sticky top-0 z-20 px-6 py-2 text-sm flex flex-wrap items-center gap-x-4 gap-y-1 ${
+        className={`sticky top-14 lg:top-0 z-20 px-4 sm:px-6 py-2 text-xs sm:text-sm flex flex-wrap items-center gap-x-4 gap-y-1 ${
           online ? "bg-teal-50 text-teal-800" : "bg-amber-100 text-amber-900"
         }`}
       >

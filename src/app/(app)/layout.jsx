@@ -24,10 +24,10 @@ export default async function AppLayout({ children }) {
     <Suspense fallback={null}><TopProgress /></Suspense>
     <div className="min-h-screen">
       <Sidebar user={session} />
-      <main className="pl-60 min-h-screen flex flex-col">
+      <main className="lg:pl-60 min-h-screen flex flex-col">
         <OfflineSync />
-        <div className="p-6 max-w-7xl mx-auto w-full flex-1">{children}</div>
-        <footer className="px-6 pb-6">
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full min-w-0 flex-1">{children}</div>
+        <footer className="px-4 sm:px-6 pb-6">
           <div className="max-w-7xl mx-auto text-center text-sm text-slate-500">
             Powered by{" "}
             <a href="https://nebtech.online" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-700 hover:text-slate-900 underline underline-offset-2">

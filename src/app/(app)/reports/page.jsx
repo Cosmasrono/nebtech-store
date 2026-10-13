@@ -41,7 +41,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">Daily sales</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="table-th">Day</th><th className="table-th text-right">Sales</th><th className="table-th text-right">Revenue</th></tr></thead>
             <tbody>
               {(sales?.daily || []).map((d) => (
@@ -49,11 +49,11 @@ export default function ReportsPage() {
               ))}
               {!sales?.daily?.length && <tr><td className="table-td text-slate-400" colSpan={3}>No sales in range.</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
         <div className="card">
           <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm">Top products</div>
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <thead><tr><th className="table-th">Product</th><th className="table-th text-right">Qty sold</th><th className="table-th text-right">Revenue</th></tr></thead>
             <tbody>
               {(sales?.topProducts || []).map((p) => (
@@ -61,7 +61,7 @@ export default function ReportsPage() {
               ))}
               {!sales?.topProducts?.length && <tr><td className="table-td text-slate-400" colSpan={3}>No data.</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

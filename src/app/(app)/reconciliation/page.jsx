@@ -195,7 +195,7 @@ function Card({ label, value, sub }) {
 
 function GroupTable({ rows, label, loading, totals }) {
   return (
-    <table className="w-full text-sm">
+    <div className="overflow-x-auto"><table className="w-full text-sm">
       <thead>
         <tr>
           <th className="table-th">{label}</th>
@@ -239,13 +239,13 @@ function GroupTable({ rows, label, loading, totals }) {
         {!rows.length && !loading && <tr><td className="table-td text-slate-400" colSpan={9}>No shifts in this period.</td></tr>}
         {loading && <tr><td className="table-td text-slate-400" colSpan={9}><span className="inline-flex items-center gap-2"><Spinner /> Loading…</span></td></tr>}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
 function ShiftTable({ rows, loading }) {
   return (
-    <table className="w-full text-sm">
+    <div className="overflow-x-auto"><table className="w-full text-sm">
       <thead>
         <tr>
           <th className="table-th">Cashier</th><th className="table-th">Branch</th>
@@ -284,6 +284,6 @@ function ShiftTable({ rows, loading }) {
         {!rows.length && !loading && <tr><td className="table-td text-slate-400" colSpan={12}>No shifts in this period.</td></tr>}
         {loading && <tr><td className="table-td text-slate-400" colSpan={12}><span className="inline-flex items-center gap-2"><Spinner /> Loading…</span></td></tr>}
       </tbody>
-    </table>
+    </table></div>
   );
 }

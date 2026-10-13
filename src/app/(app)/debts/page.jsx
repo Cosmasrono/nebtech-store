@@ -36,14 +36,14 @@ export default function DebtsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold">Debts</h1>
-        <div className="flex gap-2">
-          <input className="input w-64" placeholder="Search customer name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex gap-2 w-full sm:w-auto">
+          <input className="input w-full sm:w-64" placeholder="Search customer name or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-primary shrink-0" onClick={() => setCreating(true)}>Record debt</button>
         </div>
       </div>
 
       {summary && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Stat label="Total owed to you" value={fmt(summary.outstanding)} />
           <Stat label="Overdue" value={fmt(summary.overdue)} tone={summary.overdue > 0 ? "text-amber-700" : ""} />
           <Stat label="Customers owing" value={summary.customersOwing} />
@@ -143,7 +143,7 @@ function CustomerDebts({ customerId, onClose, onChanged }) {
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Stat label="Total owed" value={fmt(data.totals.borrowed)} />
             <Stat label="Paid" value={fmt(data.totals.paid)} tone="text-emerald-700" />
             <Stat label="Balance" value={fmt(data.totals.balance)} tone={data.totals.balance > 0 ? "text-rose-700" : ""} />
@@ -214,7 +214,7 @@ function DebtDetail({ debt, onPay }) {
       <div className="space-y-2">
         <div className="font-semibold text-slate-700">Products taken</div>
         {items.length ? (
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <tbody>
               {items.map((it, i) => (
                 <tr key={i} className="border-b border-slate-100 last:border-0">
@@ -224,7 +224,7 @@ function DebtDetail({ debt, onPay }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : (
           <div className="text-slate-600">{debt.productDescription}</div>
         )}
@@ -240,7 +240,7 @@ function DebtDetail({ debt, onPay }) {
           {debt.balance > 0 && <button className="text-teal-700 text-sm font-medium hover:underline" onClick={onPay}>Record payment</button>}
         </div>
         {debt.payments.length ? (
-          <table className="w-full">
+          <div className="overflow-x-auto"><table className="w-full">
             <tbody>
               {debt.payments.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 last:border-0">
@@ -251,7 +251,7 @@ function DebtDetail({ debt, onPay }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : (
           <div className="text-slate-400">No payments yet.</div>
         )}

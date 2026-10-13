@@ -73,13 +73,13 @@ export default function ProductsPage() {
         <h1 className="text-xl font-bold">Products</h1>
         <div className="flex gap-2 flex-wrap">
           <input
-            className="input w-64"
+            className="input w-full sm:w-64"
             placeholder="Search products…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <select
-            className="input w-40"
+            className="input w-full sm:w-40"
             value={status}
             onChange={(e) => { setPage(1); setStatus(e.target.value); }}
           >

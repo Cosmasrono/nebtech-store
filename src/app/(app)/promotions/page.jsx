@@ -71,7 +71,7 @@ function PromoModal({ row, onClose, onSave }) {
           <div><label className="label">Name *</label><input className="input" value={form.name} onChange={set("name")} /></div>
           <div><label className="label">Code *</label><input className="input uppercase" value={form.code} onChange={set("code")} /></div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div><label className="label">Type</label>
             <select className="input" value={form.type} onChange={set("type")}>
               <option value="percentage">Percent %</option><option value="fixed">Fixed KSh</option>
