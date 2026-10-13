@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Alert, Loading } from "@/components/ui";
+import catalog from "@/data/cosmetics-catalog.json";
+
+const CATALOG_SIZE = catalog.products.length;
 
 export default function SystemPage() {
   const [settings, setSettings] = useState(null);
@@ -25,10 +28,10 @@ export default function SystemPage() {
     else setMsg({ ok: false, text: (await res.json()).message || "Save failed." });
   }
 
-  async function seedPharmacy() {
+  async function seedCatalog() {
     if (!confirm(
-      "Load the Pharmacy catalog?\n\n" +
-      "• 20 pharmacy products will be added and stock split across your active branches.\n" +
+      "Load the Cosmetics catalog?\n\n" +
+      `• ${CATALOG_SIZE} cosmetics products (with pictures) will be added and stock split across your active branches.\n` +
       "• Current products with no sales are removed; those with sale history are deactivated (history is kept)."
     )) return;
 
@@ -68,16 +71,16 @@ export default function SystemPage() {
 
       <div className="card p-6 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold">Pharmacy catalog</h2>
+          <h2 className="text-sm font-semibold">Cosmetics catalog</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Load 20 pharmacy products (medicines, first aid, devices). Stock is distributed
-            evenly across all active branches. Existing products with sales history are
-            deactivated (history is preserved); others are removed.
+            Load {CATALOG_SIZE} cosmetics products with pictures: skincare, makeup, body care, hair care,
+            fragrance, nails and tools. Stock is distributed evenly across all active branches. Existing
+            products with sales history are deactivated (history is preserved); others are removed.
           </p>
         </div>
         <div>
-          <button className="btn-primary" disabled={seeding} onClick={seedPharmacy}>
-            {seeding ? "Loading pharmacy…" : "Load Pharmacy catalog"}
+          <button className="btn-primary" disabled={seeding} onClick={seedCatalog}>
+            {seeding ? "Loading catalog…" : "Load Cosmetics catalog"}
           </button>
         </div>
       </div>

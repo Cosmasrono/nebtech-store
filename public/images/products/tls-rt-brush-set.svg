@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Real Techniques Everyday Essentials Brush Set">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#f97316" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <g transform="rotate(-30 100 170)">
+    <rect x="95" y="96" width="10" height="72" rx="5" fill="#f97316"/>
+    <rect x="93" y="76" width="14" height="22" rx="2" fill="#cbd5e1"/>
+    <ellipse cx="100" cy="62" rx="10" ry="18" fill="#fde68a"/>
+  </g>
+  <g transform="rotate(-10 100 170)">
+    <rect x="95" y="96" width="10" height="72" rx="5" fill="#f97316"/>
+    <rect x="93" y="76" width="14" height="22" rx="2" fill="#cbd5e1"/>
+    <ellipse cx="100" cy="58" rx="13" ry="18" fill="#fde68a"/>
+  </g>
+  <g transform="rotate(10 100 170)">
+    <rect x="95" y="96" width="10" height="72" rx="5" fill="#f97316"/>
+    <rect x="93" y="76" width="14" height="22" rx="2" fill="#cbd5e1"/>
+    <ellipse cx="100" cy="62" rx="10" ry="18" fill="#fde68a"/>
+  </g>
+  <g transform="rotate(30 100 170)">
+    <rect x="95" y="96" width="10" height="72" rx="5" fill="#f97316"/>
+    <rect x="93" y="76" width="14" height="22" rx="2" fill="#cbd5e1"/>
+    <ellipse cx="100" cy="58" rx="13" ry="18" fill="#fde68a"/>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Maybelline Lash Sensational Mascara">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#ec4899" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="88" y="34" width="24" height="84" rx="8" fill="#1f2937"/>
+  <rect x="86" y="116" width="28" height="54" rx="8" fill="#ec4899"/>
+  <rect x="92" y="44" width="6" height="64" rx="3" fill="#fff" opacity="0.35"/>
+</svg>

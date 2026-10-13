@@ -71,27 +71,60 @@ export async function getSession() {
   }
 }
 
-// Loading a user with roles + permissions costs 3-4 round trips to MongoDB Atlas.
-// Every page and API call needs it, so keep it for a few seconds per server process.
+// Every page and API call needs the user with roles + permissions, and each round trip
+// to MongoDB Atlas is slow, so keep it per server process:
+// - fresh for AUTH_TTL_MS: served from memory;
+// - then, up to AUTH_STALE_MS: the cached copy is served while a background reload runs,
+//   so a request never waits on the database just because the cache aged out.
 // Role changes, deactivation and password changes call invalidateAuthUser() so they
-// apply immediately on this server (other server instances catch up within the TTL).
+// apply immediately on this server (other server instances catch up after one request).
 const AUTH_TTL_MS = 20_000;
-const authCache = new Map(); // userId -> { user, expires }
+const AUTH_STALE_MS = 5 * 60_000;
+const authCache = new Map(); // userId -> { user, loadedAt, refreshing }
 
 export function invalidateAuthUser(userId) {
   if (userId) authCache.delete(String(userId));
   else authCache.clear();
 }
 
+// Same shape as findUnique({ include: { roles: { include: { permissions } }, branch } }),
+// but in two round trips instead of one per relation level.
+async function fetchAuthUser(userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return null;
+  const [roles, branch, permissions] = await Promise.all([
+    user.roleIds?.length ? prisma.role.findMany({ where: { id: { in: user.roleIds } } }) : [],
+    user.branchId ? prisma.branch.findUnique({ where: { id: user.branchId } }) : null,
+    prisma.permission.findMany(),
+  ]);
+  const permissionById = new Map(permissions.map((p) => [p.id, p]));
+  return {
+    ...user,
+    branch,
+    roles: roles.map((r) => ({ ...r, permissions: (r.permissionIds || []).map((id) => permissionById.get(id)).filter(Boolean) })),
+  };
+}
+
+function storeAuthUser(userId, user) {
+  authCache.set(userId, { user, loadedAt: Date.now(), refreshing: false });
+  if (authCache.size > 500) authCache.delete(authCache.keys().next().value);
+}
+
 async function loadAuthUser(userId) {
   const hit = authCache.get(userId);
-  if (hit && hit.expires > Date.now()) return hit.user;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { roles: { include: { permissions: true } }, branch: true },
-  });
-  authCache.set(userId, { user, expires: Date.now() + AUTH_TTL_MS });
-  if (authCache.size > 500) authCache.delete(authCache.keys().next().value);
+  const age = hit ? Date.now() - hit.loadedAt : Infinity;
+  if (age < AUTH_TTL_MS) return hit.user;
+  if (age < AUTH_STALE_MS) {
+    if (!hit.refreshing) {
+      hit.refreshing = true;
+      fetchAuthUser(userId)
+        .then((user) => { if (authCache.get(userId) === hit) storeAuthUser(userId, user); })
+        .catch(() => { hit.refreshing = false; });
+    }
+    return hit.user;
+  }
+  const user = await fetchAuthUser(userId);
+  storeAuthUser(userId, user);
   return user;
 }
 

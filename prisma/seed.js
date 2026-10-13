@@ -90,9 +90,9 @@ async function main() {
     if (!process.env.SEED_OWNER_PASSWORD) console.log(`Temporary password (shown once, change it after signing in): ${password}`);
   }
 
-  // Categories
-  for (const name of ["General", "Electronics", "Accessories", "Trade-in"]) {
-    await prisma.category.upsert({ where: { name }, update: {}, create: { name } });
+  // Categories (products come from `pnpm seed:cosmetics` or the System page)
+  for (const c of require("../src/data/cosmetics-catalog.json").categories) {
+    await prisma.category.upsert({ where: { name: c.name }, update: {}, create: c });
   }
   for (const name of ["Rent", "Utilities", "Salaries", "Transport", "Supplies", "Miscellaneous"]) {
     await prisma.expenseCategory.upsert({ where: { name }, update: {}, create: { name } });

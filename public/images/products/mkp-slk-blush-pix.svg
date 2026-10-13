@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Sleek MakeUP Face Form Blush">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#f472b6" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <ellipse cx="100" cy="72" rx="50" ry="27" fill="#111827"/>
+  <ellipse cx="100" cy="72" rx="41" ry="20" fill="#e2e8f0"/>
+  <ellipse cx="88" cy="66" rx="14" ry="6" fill="#fff" opacity="0.7"/>
+  <ellipse cx="100" cy="142" rx="56" ry="30" fill="#111827"/>
+  <ellipse cx="100" cy="138" rx="45" ry="22" fill="#f472b6"/>
+  <ellipse cx="86" cy="132" rx="14" ry="5" fill="#fff" opacity="0.3"/>
+</svg>

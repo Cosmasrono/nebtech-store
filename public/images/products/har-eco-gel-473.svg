@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Eco Style Olive Oil Styling Gel 473ml">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#65a30d" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="50" y="104" width="100" height="66" rx="14" fill="#65a30d" stroke="#0f172a" stroke-opacity="0.08"/>
+  <rect x="54" y="86" width="92" height="24" rx="7" fill="#fef08a"/>
+  <rect x="60" y="114" width="6" height="46" rx="3" fill="#fff" opacity="0.35"/>
+  <rect x="62" y="127" width="76" height="22" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="142.40740740740742" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="12.6" fill="#1f2937">Eco Style</text>
+</svg>

@@ -7,6 +7,9 @@ const DB_NAME = "nebtech-offline";
 const DB_VERSION = 1;
 export const QUEUE_EVENT = "nebtech:offline-queue";
 export const CATALOG_EVENT = "nebtech:offline-catalog";
+// Ask OfflineSync to re-download the catalog now (e.g. after a sale changed stock).
+export const REFRESH_CATALOG_EVENT = "nebtech:refresh-catalog";
+export const requestCatalogRefresh = () => window.dispatchEvent(new Event(REFRESH_CATALOG_EVENT));
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -155,7 +158,8 @@ export function syncQueuedSales() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(entry.body),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(35000), // longer than the server's 30s sale transaction
+          silent: true, // background upload: the top bar reports progress, not toasts
         });
       } catch {
         break; // still offline — try again later

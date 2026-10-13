@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Palmolive Naturals Milk &amp; Honey Shower Gel 500ml">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#fde047" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="66" y="68" width="68" height="102" rx="18" fill="#fde047" stroke="#0f172a" stroke-opacity="0.08"/>
+  <rect x="82" y="44" width="36" height="28" rx="6" fill="#a16207"/>
+  <rect x="72" y="80" width="6" height="76" rx="3" fill="#fff" opacity="0.35"/>
+  <rect x="72" y="105" width="56" height="30" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="123.11111111111111" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="8.9" fill="#1f2937">Palmolive</text>
+</svg>

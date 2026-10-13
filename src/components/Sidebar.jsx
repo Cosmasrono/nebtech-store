@@ -71,7 +71,7 @@ export default function Sidebar({ user }) {
     <aside className="fixed inset-y-0 left-0 w-60 bg-slate-900 text-slate-300 flex flex-col z-30">
       <div className="px-5 py-4 border-b border-slate-800">
         <div className="text-lg font-bold text-white flex items-center gap-1.5">
-          <span>🌱 NebTech</span> <span className="text-emerald-400">Agrovet</span>
+          <span>💄 NebTech</span> <span className="text-pink-400">Beauty</span>
         </div>
         <div className="text-xs text-slate-500 truncate">{user?.name}</div>
       </div>

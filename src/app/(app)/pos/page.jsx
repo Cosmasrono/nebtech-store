@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CATALOG_EVENT, getCatalog, getQueuedSales, isNetworkError, queueSale, searchCatalog } from "@/lib/offline";
+import { CATALOG_EVENT, getCatalog, getQueuedSales, isNetworkError, queueSale, requestCatalogRefresh, searchCatalog } from "@/lib/offline";
 import { priceCart } from "@/lib/discounts";
+import ProductImage from "@/components/ProductImage";
 
 const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
@@ -30,7 +31,9 @@ export default function PosPage() {
   const searchRef = useRef(null);
   const loadVersion = useRef(0);
 
-  // Online: ask the server. Offline (or the request fails): search the cached catalog.
+  // Search the catalog saved on this device: instant, with no server round trip per
+  // keystroke. OfflineSync keeps it fresh (on POS open, after each sale, and every minute).
+  // Only when nothing is saved yet does the search go to the server.
   const loadProducts = useCallback(async (query = "", catId = selectedCat) => {
     const version = ++loadVersion.current;
     const cached = await getCatalog().catch(() => []);
@@ -39,7 +42,10 @@ export default function PosPage() {
       setProducts(searchCatalog(cached, query, catId));
       if (cached.length) setCategories([...new Map(cached.map((p) => [p.categoryId, { id: p.categoryId, name: p.category }])).values()].filter((c) => c.id));
     };
-    if (cached.length) showCached();
+    if (cached.length) {
+      showCached();
+      return;
+    }
     const catParam = catId && catId !== "all" ? `&category_id=${encodeURIComponent(catId)}` : "";
     const pending = await getQueuedSales().catch(() => []);
     if (navigator.onLine && !pending.length) {
@@ -85,6 +91,9 @@ export default function PosPage() {
     loadProducts(q, selectedCat);
     fetch("/api/shifts/active").then((r) => r.json()).then((d) => setShift(d.data)).catch(() => {});
   }, [loadProducts]); // eslint-disable-line
+
+  // Pick up stock and price changes made since the catalog was last saved.
+  useEffect(() => { requestCatalogRefresh(); }, []);
 
   useEffect(() => {
     const t = setTimeout(() => loadProducts(q, selectedCat), 250);
@@ -190,7 +199,7 @@ export default function PosPage() {
           <input
             ref={searchRef}
             className="input"
-            placeholder="Search crop & animal inputs, active ingredients (e.g. Glyphosate, Oxytet), SKU…"
+            placeholder="Search products, brands or shades (e.g. Nivea, Fit Me, Ruby Woo), SKU…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             autoFocus
@@ -200,7 +209,7 @@ export default function PosPage() {
           </button>
         </div>
 
-        {/* Agrovet Category Pills */}
+        {/* Category pills */}
         {categories.length > 0 && (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
@@ -241,6 +250,7 @@ export default function PosPage() {
               className="card p-3 text-left hover:border-teal-500 hover:shadow transition disabled:opacity-40 flex flex-col justify-between"
             >
               <div>
+                <ProductImage src={p.imageUrl} name={p.name} className="w-full h-24 mb-2 text-2xl" />
                 <div className="flex items-start justify-between gap-1">
                   <div className="text-sm font-semibold leading-tight line-clamp-2 text-slate-800">{p.name}</div>
                   {p.prescriptionRequired && (
@@ -479,7 +489,10 @@ export default function PosPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
-                signal: AbortSignal.timeout(15000),
+                // Longer than the server's 30s sale transaction, so a slow-but-working save isn't
+                // mistaken for "offline". A real lost connection still fails straight away.
+                signal: AbortSignal.timeout(35000),
+                silent: true, // this page shows its own messages (saved offline / failed)
               });
             } catch (e) {
               if (isNetworkError(e) && canSaveOffline) {
@@ -502,7 +515,7 @@ export default function PosPage() {
               setShowPayModal(false);
               setCompletedSale(data.data);
               router.prefetch(`/sales/${data.data.id}`);
-              loadProducts(q);
+              requestCatalogRefresh(); // stock changed; the POS re-searches when the new catalog lands
             } else {
               setMsg({ ok: false, text: data.message || "Sale failed." });
               setShowPayModal(false);

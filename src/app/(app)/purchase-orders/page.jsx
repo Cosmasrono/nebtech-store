@@ -265,20 +265,10 @@ function CreatePoModal({ onClose, onDone, setMsg }) {
                   </select>
                   <input type="number" step="0.01" className="input col-span-3" placeholder="Selling price *" value={it.newProduct.sellingPrice} onChange={(e) => setNewProd(idx, "sellingPrice", e.target.value)} />
 
-                  <input className="input col-span-4" placeholder="Generic name (e.g. Paracetamol 500mg)" value={it.newProduct.genericName} onChange={(e) => setNewProd(idx, "genericName", e.target.value)} />
-                  <input className="input col-span-3" placeholder="Brand (e.g. Panadol)" value={it.newProduct.brandName} onChange={(e) => setNewProd(idx, "brandName", e.target.value)} />
-                  <input className="input col-span-2" placeholder="Strength" value={it.newProduct.strength} onChange={(e) => setNewProd(idx, "strength", e.target.value)} />
-                  <select className="input col-span-3" value={it.newProduct.dosageForm} onChange={(e) => setNewProd(idx, "dosageForm", e.target.value)}>
-                    <option value="">Dosage form…</option>
-                    {["tablet","capsule","syrup","suspension","injection","cream","ointment","drops","inhaler","sachet","suppository","other"].map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
-
-                  <input className="input col-span-3" placeholder="Pack size (e.g. 20 tabs)" value={it.newProduct.packSize} onChange={(e) => setNewProd(idx, "packSize", e.target.value)} />
-                  <input className="input col-span-4" placeholder="Manufacturer" value={it.newProduct.manufacturer} onChange={(e) => setNewProd(idx, "manufacturer", e.target.value)} />
-                  <label className="flex items-center gap-2 text-sm col-span-5">
-                    <input type="checkbox" checked={it.newProduct.prescriptionRequired} onChange={(e) => setNewProd(idx, "prescriptionRequired", e.target.checked)} />
-                    Prescription required (Rx)
-                  </label>
+                  <input className="input col-span-4" placeholder="Shade / variant (e.g. 128 Warm Nude)" value={it.newProduct.genericName} onChange={(e) => setNewProd(idx, "genericName", e.target.value)} />
+                  <input className="input col-span-3" placeholder="Brand (e.g. Maybelline)" value={it.newProduct.brandName} onChange={(e) => setNewProd(idx, "brandName", e.target.value)} />
+                  <input className="input col-span-2" placeholder="Size (e.g. 30ml)" value={it.newProduct.packSize} onChange={(e) => setNewProd(idx, "packSize", e.target.value)} />
+                  <input className="input col-span-3" placeholder="Manufacturer" value={it.newProduct.manufacturer} onChange={(e) => setNewProd(idx, "manufacturer", e.target.value)} />
                 </div>
               )}
 

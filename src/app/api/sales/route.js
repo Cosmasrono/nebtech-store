@@ -49,15 +49,30 @@ export async function POST(req) {
     return Response.json({ message: "At least one sale item is required." }, { status: 422 });
   }
 
-  // Offline POS sales carry a client-generated id; if a sync retry re-sends one
-  // that already landed, return the existing sale instead of recording it twice.
   const clientId = typeof data.clientId === "string" && data.clientId.length <= 64 ? data.clientId : null;
-  if (clientId) {
-    const existing = await prisma.sale.findFirst({
-      where: { clientId, cashierId: user.id },
-      include: { items: { include: { product: true } } },
-    });
-    if (existing) return Response.json({ data: existing, duplicate: true }, { status: 200 });
+  const productIds = [...new Set(data.items.map((i) => i.productId))];
+  const branchId = user.branchId || (await mainBranchId()); // user's branch, else main branch
+  const now = new Date();
+
+  // Independent lookups run side by side: each is a slow round trip to Atlas.
+  const [existing, products, shift, expiredRows] = await Promise.all([
+    // Offline POS sales carry a client-generated id; if a sync retry re-sends one
+    // that already landed, return the existing sale instead of recording it twice.
+    clientId ? prisma.sale.findFirst({ where: { clientId, cashierId: user.id }, select: { id: true } }) : null,
+    prisma.product.findMany({ where: { id: { in: productIds } } }),
+    prisma.shift.findFirst({ where: { cashierId: user.id, status: "open" } }), // active shift (optional)
+    // Expired stock is blocked from sale — one query for the whole cart.
+    branchId
+      ? prisma.productBatch.groupBy({
+          by: ["productId"],
+          where: { productId: { in: productIds }, branchId, expiryDate: { lt: now }, quantity: { gt: 0 } },
+          _sum: { quantity: true },
+        })
+      : [],
+  ]);
+  if (existing) {
+    const sale = await prisma.sale.findUnique({ where: { id: existing.id }, include: { items: { include: { product: true } } } });
+    return Response.json({ data: sale, duplicate: true }, { status: 200 });
   }
 
   // Keep the real time an offline sale happened (bounded so it can't be backdated arbitrarily).
@@ -69,8 +84,6 @@ export async function POST(req) {
   }
 
   // Prices and totals are always recomputed from the catalog — never trusted from the client.
-  const productIds = [...new Set(data.items.map((i) => i.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
   const productById = new Map(products.map((p) => [p.id, p]));
 
   const rawItems = [];
@@ -176,23 +189,12 @@ export async function POST(req) {
   // Sale on debt: the customer owes exactly the sale total (no interest).
   const loanTotals = isLoan ? debtAmounts(totalAmount) : null;
 
-  // Resolve branch: user's branch, else main branch
-  const branchId = user.branchId || (await mainBranchId());
-
   try {
     // Validation + lookups run before the transaction so it stays short
     // (each query is a network round-trip; the tx must fit in its timeout).
     if (branchId) {
-      // One query for the whole cart instead of two per item.
-      const now = new Date();
-      const cartIds = items.map((i) => i.productId);
-      const expiredRows = await prisma.productBatch.groupBy({
-        by: ["productId"],
-        where: { productId: { in: cartIds }, branchId, expiryDate: { lt: now }, quantity: { gt: 0 } },
-        _sum: { quantity: true },
-      });
       const expiredById = new Map(expiredRows.map((r) => [r.productId, r._sum.quantity || 0]));
-      const withExpired = cartIds.filter((id) => expiredById.get(id) > 0);
+      const withExpired = productIds.filter((id) => expiredById.get(id) > 0);
       if (withExpired.length) {
         const sellableRows = await prisma.productBatch.groupBy({
           by: ["productId"],
@@ -218,9 +220,6 @@ export async function POST(req) {
         }
       }
     }
-
-    // Active shift (optional)
-    const shift = await prisma.shift.findFirst({ where: { cashierId: user.id, status: "open" } });
 
     // Auto-save the customer when a phone was captured (e.g. M-Pesa prompt)
     let customerId = data.customerId || null;
@@ -428,7 +427,8 @@ export async function POST(req) {
     }, { maxWait: 10000, timeout: 30000 });
 
     await audit({ userId: user.id, event: "created", type: "Sale", auditableId: sale.id, newValues: { receiptNumber: sale.receiptNumber, totalAmount: sale.totalAmount, ...(handDiscount > 0 && { discount: handDiscount, discountReason }) }, req });
-    const full = await prisma.sale.findUnique({ where: { id: sale.id }, include: { items: { include: { product: true } } } });
+    // Built from what was just written instead of re-reading it (saves three round trips).
+    const full = { ...sale, items: items.map((i) => ({ ...i, saleId: sale.id, product: productById.get(i.productId) })) };
     return Response.json({ data: full }, { status: 201 });
   } catch (e) {
     return Response.json({ message: e.message || "Sale failed." }, { status: 422 });

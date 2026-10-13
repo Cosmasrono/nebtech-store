@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Cutex Strength &amp; Shine Nail Polish Remover 200ml">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#f9a8d4" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="66" y="68" width="68" height="102" rx="18" fill="#f9a8d4" stroke="#0f172a" stroke-opacity="0.08"/>
+  <rect x="82" y="44" width="36" height="28" rx="6" fill="#be185d"/>
+  <rect x="72" y="80" width="6" height="76" rx="3" fill="#fff" opacity="0.35"/>
+  <rect x="72" y="105" width="56" height="30" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="124.55" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="13.0" fill="#1f2937">Cutex</text>
+</svg>

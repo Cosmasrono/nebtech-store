@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Beautyblender Original Makeup Sponge">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#ec4899" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <path d="M100 44 C132 44 146 100 146 128 C146 156 126 170 100 170 C74 170 54 156 54 128 C54 100 68 44 100 44 Z" fill="#ec4899"/>
+  <ellipse cx="84" cy="92" rx="10" ry="20" fill="#f9a8d4" opacity="0.6"/>
+</svg>

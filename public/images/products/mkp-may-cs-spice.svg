@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Maybelline Color Sensational Lipstick">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#a0522d" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <path d="M88 98 V62 Q88 52 100 46 L112 40 V98 Z" fill="#a0522d"/>
+  <rect x="84" y="96" width="32" height="24" rx="2" fill="#d4af37"/>
+  <rect x="80" y="118" width="40" height="52" rx="4" fill="#1f2937"/>
+  <rect x="86" y="124" width="6" height="40" rx="3" fill="#fff" opacity="0.35"/>
+</svg>

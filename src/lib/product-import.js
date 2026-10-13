@@ -1,6 +1,8 @@
 // Bulk product import: CSV parsing and row validation.
 // Used in the browser (preview) and on the server (the real check), so it must stay dependency-free.
 
+import { cleanImageUrl } from "./product-image";
+
 export const MAX_IMPORT_ROWS = 2000;
 
 export const DOSAGE_FORMS = [
@@ -19,28 +21,30 @@ const ALIASES = {
   quantity: ["quantity", "qty", "stock", "openingstock", "quantityinstock"],
   reorderLevel: ["reorderlevel", "reorder", "minstock", "minimumstock"],
   description: ["description", "details"],
-  genericName: ["genericname", "generic"],
+  genericName: ["shadeorvariant", "shade", "variant", "genericname", "generic"],
   brandName: ["brandname", "brand"],
   strength: ["strength"],
   dosageForm: ["dosageform", "form"],
-  packSize: ["packsize", "pack"],
+  packSize: ["packsize", "pack", "size"],
   manufacturer: ["manufacturer", "maker"],
+  imageUrl: ["imageurl", "image", "photo", "picture", "imagelink"],
   prescriptionRequired: ["prescriptionrequired", "prescription", "pom", "rx"],
   batchNumber: ["batchnumber", "batch", "batchno", "lot"],
   expiryDate: ["expirydate", "expiry", "exp", "expires"],
 };
 
+// Pharmacy columns (strength, dosage_form, prescription_required) are still read if present.
 export const TEMPLATE_HEADERS = [
   "name", "sku", "barcode", "category", "cost_price", "selling_price", "quantity", "reorder_level",
-  "description", "generic_name", "brand_name", "strength", "dosage_form", "pack_size",
-  "manufacturer", "prescription_required", "batch_number", "expiry_date",
+  "description", "shade_or_variant", "brand_name", "pack_size", "manufacturer", "image_url",
+  "batch_number", "expiry_date",
 ];
 
 export const TEMPLATE_EXAMPLE = [
-  ["Panadol Extra 500mg", "PAN-500", "5000158062115", "Pharmacy", "8", "15", "200", "20",
-    "", "Paracetamol", "Panadol", "500mg", "tablet", "10x10", "GSK", "no", "B2291", "2027-06-30"],
-  ["DAP Fertilizer 50kg", "", "", "Fertilizers", "5200", "6100", "12", "3",
-    "", "", "", "", "", "", "", "", "", ""],
+  ["Maybelline Fit Me Foundation 30ml", "MKP-FITME-128", "", "Makeup", "1050", "1550", "24", "6",
+    "", "Shade 128 Warm Nude", "Maybelline", "30ml", "L'Oréal", "https://example.com/fit-me-128.jpg", "B2291", "2028-06-30"],
+  ["Nivea Soft Cream 200ml", "", "", "Skincare", "520", "750", "40", "10",
+    "", "", "Nivea", "200ml", "", "", "", ""],
 ];
 
 const key = (h) => String(h || "").toLowerCase().replace(/[\s_\-.]/g, "");
@@ -162,6 +166,9 @@ export function normalizeRow(raw) {
   const sku = text("sku", 60);
   if (sku && !/^[\w\-./ ]+$/.test(sku)) errors.push("SKU can only use letters, numbers, - _ . /");
 
+  const imageUrl = cleanImageUrl(raw.imageUrl);
+  if (imageUrl === undefined) errors.push("Image must be a link starting with https:// (or a /images/... path)");
+
   return {
     errors,
     value: {
@@ -180,6 +187,7 @@ export function normalizeRow(raw) {
       dosageForm,
       packSize: text("packSize", 60),
       manufacturer: text("manufacturer", 120),
+      imageUrl: imageUrl ?? null,
       prescriptionRequired: YES.includes(rx),
       batchNumber: text("batchNumber", 60),
       expiryDate: expiry instanceof Date ? expiry.toISOString() : null,

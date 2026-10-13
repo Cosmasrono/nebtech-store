@@ -97,7 +97,7 @@ export async function POST(req) {
     usedSkus.add(sku);
     const id = objectId();
     productDocs.push({
-      id, name: r.name, sku, barcode: r.barcode, description: r.description,
+      id, name: r.name, sku, barcode: r.barcode, description: r.description, imageUrl: r.imageUrl,
       genericName: r.genericName, brandName: r.brandName, strength: r.strength, dosageForm: r.dosageForm,
       packSize: r.packSize, manufacturer: r.manufacturer, prescriptionRequired: r.prescriptionRequired,
       costPrice: r.costPrice, sellingPrice: r.sellingPrice, quantityInStock: r.quantity,
@@ -132,6 +132,7 @@ export async function POST(req) {
             ...(r.costPrice !== null && { costPrice: r.costPrice }),
             ...(r.barcode && { barcode: r.barcode }),
             ...(r.description && { description: r.description }),
+            ...(r.imageUrl && { imageUrl: r.imageUrl }),
             ...(r.genericName && { genericName: r.genericName }),
             ...(r.brandName && { brandName: r.brandName }),
             ...(r.strength && { strength: r.strength }),

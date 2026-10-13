@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { cleanImageUrl, IMAGE_URL_ERROR } from "@/lib/product-image";
 
 export async function GET(req, { params }) {
   const { error } = await requireAuth("view_inventory");
@@ -26,6 +27,10 @@ export async function PUT(req, { params }) {
   for (const k of ["name", "description", "sku", "barcode", /* "imei", */ "categoryId",
     "genericName", "brandName", "strength", "dosageForm", "packSize", "manufacturer"]) if (body[k] !== undefined) data[k] = body[k];
   if (body.prescriptionRequired !== undefined) data.prescriptionRequired = !!body.prescriptionRequired;
+  if (body.imageUrl !== undefined) {
+    data.imageUrl = cleanImageUrl(body.imageUrl);
+    if (data.imageUrl === undefined) return Response.json({ message: IMAGE_URL_ERROR }, { status: 422 });
+  }
   for (const k of ["costPrice", "sellingPrice"]) if (body[k] !== undefined) data[k] = body[k] == null ? null : Number(body[k]);
   for (const k of ["quantityInStock", "reorderLevel"]) if (body[k] !== undefined) data[k] = Number(body[k]);
   if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);

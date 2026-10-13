@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Vaseline Lip Therapy Rosy Lips 20g">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#fbcfe8" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <ellipse cx="100" cy="146" rx="52" ry="20" fill="#db2777"/>
+  <rect x="48" y="112" width="104" height="34" fill="#db2777"/>
+  <ellipse cx="100" cy="112" rx="52" ry="20" fill="#fbcfe8"/>
+  <ellipse cx="100" cy="112" rx="40" ry="13" fill="#fff" opacity="0.5"/>
+  <rect x="60" y="123" width="80" height="18" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="136.55" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="13.0" fill="#1f2937">Vaseline</text>
+</svg>

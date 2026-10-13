@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ProductImage from "@/components/ProductImage";
 
 const fmt = (n) => (n == null ? "—" : `KSh ${Number(n).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`);
 
@@ -116,6 +117,9 @@ export default function ProductsPage() {
             {rows.map((p) => (
               <tr key={p.id} className={`hover:bg-slate-50 ${!p.isActive ? "opacity-60" : ""}`}>
                 <td className="table-td">
+                  <div className="flex items-center gap-3">
+                  <ProductImage src={p.imageUrl} name={p.name} className="w-11 h-11 border border-slate-100" />
+                  <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium text-slate-900">{p.name}</span>
                     {p.prescriptionRequired && (
@@ -134,6 +138,8 @@ export default function ProductsPage() {
                       {p.genericName}
                     </div>
                   )}
+                  </div>
+                  </div>
                 </td>
                 <td className="table-td text-slate-500">{p.sku}</td>
                 <td className="table-td">{p.category?.name}</td>

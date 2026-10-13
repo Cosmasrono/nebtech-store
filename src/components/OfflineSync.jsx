@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   QUEUE_EVENT,
+  REFRESH_CATALOG_EVENT,
   getCatalogSavedAt,
   getQueuedSales,
   removeQueuedSale,
@@ -30,7 +31,8 @@ export default function OfflineSync() {
   const refreshCatalog = useCallback(async () => {
     try {
       if (!navigator.onLine || (await getQueuedSales()).length) return;
-      const res = await fetch("/api/pos/products?all=1", { cache: "no-store", signal: AbortSignal.timeout(10000) });
+      // Background download: allow for a cold server and a distant database.
+      const res = await fetch("/api/pos/products?all=1", { cache: "no-store", signal: AbortSignal.timeout(30000) });
       if (res.ok) {
         await saveCatalog((await res.json()).data);
         setCatalogReady(Boolean(await getCatalogSavedAt()));
@@ -88,12 +90,14 @@ export default function OfflineSync() {
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     window.addEventListener(QUEUE_EVENT, refreshQueue);
+    window.addEventListener(REFRESH_CATALOG_EVENT, refreshCatalog);
     // Retry periodically too — navigator.onLine can say "online" while the internet is actually down.
     const t = setInterval(() => { sync(); }, 60_000);
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
       window.removeEventListener(QUEUE_EVENT, refreshQueue);
+      window.removeEventListener(REFRESH_CATALOG_EVENT, refreshCatalog);
       clearInterval(t);
       navigator.serviceWorker?.removeEventListener("message", onWorkerMessage);
     };

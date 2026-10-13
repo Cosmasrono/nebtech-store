@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Victoria's Secret Bare Vanilla Fine Fragrance Mist 250ml">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#fde68a" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="70" y="72" width="60" height="98" rx="12" fill="#fde68a" stroke="#0f172a" stroke-opacity="0.08"/>
+  <rect x="86" y="52" width="28" height="22" rx="4" fill="#78350f"/>
+  <rect x="112" y="58" width="10" height="6" rx="2" fill="#78350f"/>
+  <rect x="76" y="82" width="6" height="74" rx="3" fill="#fff" opacity="0.35"/>
+  <rect x="74" y="107" width="52" height="30" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="123.50980392156863" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="4.3" fill="#1f2937">Victoria's Secret</text>
+</svg>

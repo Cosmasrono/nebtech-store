@@ -31,13 +31,13 @@ export default function SaleDetailPage({ params }) {
 
       <div className="card p-6" id="receipt">
         <div className="text-center mb-4">
-          <div className="font-bold text-lg">NebTech Agrovet Supplies</div>
-          <div className="text-xs text-slate-500">{sale.branch?.name || "Main Agrovet Store"}</div>
+          <div className="font-bold text-lg">NebTech Beauty &amp; Cosmetics</div>
+          <div className="text-xs text-slate-500">{sale.branch?.name || "Main Store"}</div>
           <div className="text-xs text-slate-500 mt-1">{new Date(sale.createdAt).toLocaleString("en-KE")}</div>
           <div className="text-sm font-mono mt-1">{sale.receiptNumber}</div>
           {sale.customer && (
             <div className="mt-2 text-xs bg-slate-50 rounded p-1.5 border border-slate-200 inline-block text-left">
-              <span className="font-semibold text-slate-700">Farmer: </span>{sale.customer.name}
+              <span className="font-semibold text-slate-700">Customer: </span>{sale.customer.name}
               {sale.customer.phone && <span className="text-slate-500"> ({sale.customer.phone})</span>}
             </div>
           )}
@@ -82,7 +82,7 @@ export default function SaleDetailPage({ params }) {
           )}
           {sale.changeAmount > 0 && <Row label="Change" value={fmt(sale.changeAmount)} />}
         </div>
-        <div className="text-center text-xs text-slate-400 mt-4">Served by {sale.cashier?.name} · Quality Agrovet Inputs Guaranteed</div>
+        <div className="text-center text-xs text-slate-400 mt-4">Served by {sale.cashier?.name} · Thank you for shopping with us</div>
       </div>
     </div>
   );

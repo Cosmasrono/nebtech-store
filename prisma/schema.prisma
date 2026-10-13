@@ -150,6 +150,8 @@ model Product {
   categoryId           String      @db.ObjectId
   category             Category    @relation(fields: [categoryId], references: [id])
   isActive             Boolean     @default(true)
+  // Product photo: a path under /public (e.g. /images/products/x.svg) or a full https:// URL.
+  imageUrl             String?
   // Pharmacy fields. Grouping brand variants by genericName lets the POS
   // show "Panadol / Hedex / Generic" side-by-side when the cashier types
   // "paracetamol".

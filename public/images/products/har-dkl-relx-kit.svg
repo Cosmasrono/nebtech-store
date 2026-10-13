@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Dark and Lovely Moisture Plus Relaxer Kit">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#7e22ce" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <rect x="54" y="46" width="92" height="124" rx="6" fill="#7e22ce"/>
+  <rect x="54" y="46" width="92" height="22" rx="6" fill="#f472b6"/>
+  <circle cx="100" cy="98" r="18" fill="#f472b6" opacity="0.8"/>
+  <rect x="60" y="129" width="80" height="22" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="142.8" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="8.0" fill="#1f2937">Dark and Lovely</text>
+</svg>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ProductImage from "./ProductImage";
 
 export default function ProductForm({ productId = null }) {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function ProductForm({ productId = null }) {
     name: "", sku: "", barcode: "", categoryId: "", costPrice: "", sellingPrice: "",
     reorderLevel: 10, description: "", expiryDate: "", batchNumber: "", isActive: true,
     genericName: "", brandName: "", packSize: "", manufacturer: "", prescriptionRequired: false,
+    imageUrl: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,6 +34,7 @@ export default function ProductForm({ productId = null }) {
           genericName: p.genericName || "", brandName: p.brandName || "",
           packSize: p.packSize || "", manufacturer: p.manufacturer || "",
           prescriptionRequired: !!p.prescriptionRequired,
+          imageUrl: p.imageUrl || "",
         }));
       });
     }
@@ -83,23 +86,25 @@ export default function ProductForm({ productId = null }) {
         {/* <div><label className="label">IMEI (phones optional)</label><input className="input" value={form.imei} onChange={set("imei")} /></div> */}
         <div><label className="label">Cost price (KSh)</label><input type="number" step="0.01" className="input" value={form.costPrice} onChange={set("costPrice")} /></div>
         <div><label className="label">Selling price (KSh) *</label><input type="number" step="0.01" className="input" required value={form.sellingPrice} onChange={set("sellingPrice")} /></div>
-        <div><label className="label">Active Ingredient / Generic</label><input className="input" placeholder="e.g. Glyphosate 480g/L, Oxytetracycline 20%" value={form.genericName} onChange={set("genericName")} /></div>
-        <div><label className="label">Brand / Trade Name</label><input className="input" placeholder="e.g. Roundup, Alamycin, Dekalb" value={form.brandName} onChange={set("brandName")} /></div>
-        <div><label className="label">Pack Size</label><input className="input" placeholder="e.g. 50kg, 2kg, 1L, 100ml, 50g" value={form.packSize} onChange={set("packSize")} /></div>
-        <div><label className="label">Manufacturer / Supplier</label><input className="input" placeholder="e.g. Kenya Seed, Norbrook, Bayer" value={form.manufacturer} onChange={set("manufacturer")} /></div>
+        <div><label className="label">Shade / Variant</label><input className="input" placeholder="e.g. Shade 128 Warm Nude, Cocoa Butter" value={form.genericName} onChange={set("genericName")} /></div>
+        <div><label className="label">Brand</label><input className="input" placeholder="e.g. Nivea, Maybelline, Cantu" value={form.brandName} onChange={set("brandName")} /></div>
+        <div><label className="label">Size</label><input className="input" placeholder="e.g. 30ml, 200ml, 50g, 1 set" value={form.packSize} onChange={set("packSize")} /></div>
+        <div><label className="label">Manufacturer / Supplier</label><input className="input" placeholder="e.g. L'Oréal, Unilever, Beiersdorf" value={form.manufacturer} onChange={set("manufacturer")} /></div>
         {!productId && (
           <div><label className="label">Expiry date (optional)</label><input type="date" className="input" value={form.expiryDate} onChange={set("expiryDate")} /></div>
         )}
         <div><label className="label">Reorder level</label><input type="number" className="input" value={form.reorderLevel} onChange={set("reorderLevel")} /></div>
-        <div className="flex items-center gap-4 pb-2">
-          <div className="flex items-center gap-2">
-            <input id="active" type="checkbox" checked={form.isActive} onChange={set("isActive")} />
-            <label htmlFor="active" className="text-sm">Active</label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input id="pom" type="checkbox" checked={form.prescriptionRequired} onChange={set("prescriptionRequired")} />
-            <label htmlFor="pom" className="text-sm font-medium text-amber-700">Prescription / POM</label>
-          </div>
+        <div className="flex items-center gap-2 pb-2">
+          <input id="active" type="checkbox" checked={form.isActive} onChange={set("isActive")} />
+          <label htmlFor="active" className="text-sm">Active</label>
+        </div>
+      </div>
+      <div className="flex items-start gap-4">
+        <ProductImage src={form.imageUrl.trim()} name={form.name} className="w-20 h-20 border border-slate-200" />
+        <div className="flex-1">
+          <label className="label">Product image link</label>
+          <input className="input" placeholder="https://… or /images/products/photo.jpg" value={form.imageUrl} onChange={set("imageUrl")} />
+          <p className="text-xs text-slate-400 mt-1">Paste a link to the product photo. It shows on the POS and in the product list.</p>
         </div>
       </div>
       <div><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={set("description")} /></div>

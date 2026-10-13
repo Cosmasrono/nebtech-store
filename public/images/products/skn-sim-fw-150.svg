@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Simple Refreshing Facial Wash 150ml">
+  <rect width="200" height="200" rx="24" fill="#fff"/>
+  <rect width="200" height="200" rx="24" fill="#ecfccb" opacity="0.12"/>
+  <ellipse cx="100" cy="174" rx="62" ry="8" fill="#0f172a" opacity="0.08"/>
+  
+  <path d="M60 38 H140 L122 146 H78 Z" fill="#ecfccb" stroke="#0f172a" stroke-opacity="0.08"/>
+  <rect x="58" y="32" width="84" height="10" rx="2" fill="#ecfccb" stroke="#0f172a" stroke-opacity="0.15"/>
+  <rect x="76" y="146" width="48" height="24" rx="5" fill="#16a34a"/>
+  <rect x="72" y="76" width="56" height="28" rx="4" fill="#fff" opacity="0.92"/>
+  <text x="100" y="94.55" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="13.0" fill="#1f2937">Simple</text>
+</svg>

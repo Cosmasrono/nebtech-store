@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { cleanImageUrl, IMAGE_URL_ERROR } from "@/lib/product-image";
 
 export async function GET(req) {
   const { user, error } = await requireAuth("view_inventory");
@@ -53,6 +54,8 @@ export async function POST(req) {
   if (!name || !sku || !sellingPrice || !categoryId) {
     return Response.json({ message: "name, sku, sellingPrice and categoryId are required." }, { status: 422 });
   }
+  const imageUrl = cleanImageUrl(body.imageUrl);
+  if (imageUrl === undefined) return Response.json({ message: IMAGE_URL_ERROR }, { status: 422 });
 
   const allocations = branchAllocations
     .map((a) => ({ branchId: a.branchId, quantity: Number(a.quantity) || 0 }))
@@ -67,6 +70,7 @@ export async function POST(req) {
         barcode: barcode || null,
         // imei: imei || null,
         description: description || null,
+        imageUrl,
         genericName: genericName || null,
         brandName: brandName || null,
         strength: strength || null,

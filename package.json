@@ -12,7 +12,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "seed": "node prisma/seed.js",
-    "seed:agrovet": "node --env-file=.env prisma/seed-agrovet.js"
+    "seed:cosmetics": "node --env-file=.env prisma/seed-cosmetics.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

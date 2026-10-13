@@ -49,7 +49,8 @@ export default function ToastProvider({ children }) {
       const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
       const raw = typeof input === "string" ? input : input.url;
       const path = raw.replace(window.location.origin, "");
-      const track = path.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+      // `silent: true` in the fetch options: the caller reports the outcome itself.
+      const track = !init?.silent && path.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(method);
       try {
         const res = await orig(input, init);
         if (track) {
