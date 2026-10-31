@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATALOG_EVENT, getCatalog, getQueuedSales, isNetworkError, queueSale, requestCatalogRefresh, searchCatalog } from "@/lib/offline";
 import { priceCart } from "@/lib/discounts";
-import ProductImage from "@/components/ProductImage";
 
 const fmt = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
 
@@ -262,7 +261,6 @@ export default function PosPage() {
               className="card p-3 text-left hover:border-teal-500 hover:shadow transition disabled:opacity-40 flex flex-col justify-between"
             >
               <div>
-                <ProductImage src={p.imageUrl} name={p.name} className="w-full h-24 mb-2 text-2xl" />
                 <div className="flex items-start justify-between gap-1">
                   <div className="text-sm font-semibold leading-tight line-clamp-2 text-slate-800">{p.name}</div>
                   {p.prescriptionRequired && (

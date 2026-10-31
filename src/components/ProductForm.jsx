@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import ProductImage from "./ProductImage";
 
 export default function ProductForm({ productId = null }) {
   const router = useRouter();
@@ -13,7 +12,6 @@ export default function ProductForm({ productId = null }) {
     name: "", sku: "", barcode: "", categoryId: "", costPrice: "", sellingPrice: "",
     reorderLevel: 10, description: "", expiryDate: "", batchNumber: "", isActive: true,
     genericName: "", brandName: "", packSize: "", manufacturer: "", prescriptionRequired: false,
-    imageUrl: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,7 +32,6 @@ export default function ProductForm({ productId = null }) {
           genericName: p.genericName || "", brandName: p.brandName || "",
           packSize: p.packSize || "", manufacturer: p.manufacturer || "",
           prescriptionRequired: !!p.prescriptionRequired,
-          imageUrl: p.imageUrl || "",
         }));
       });
     }
@@ -97,14 +94,6 @@ export default function ProductForm({ productId = null }) {
         <div className="flex items-center gap-2 pb-2">
           <input id="active" type="checkbox" checked={form.isActive} onChange={set("isActive")} />
           <label htmlFor="active" className="text-sm">Active</label>
-        </div>
-      </div>
-      <div className="flex items-start gap-4">
-        <ProductImage src={form.imageUrl.trim()} name={form.name} className="w-20 h-20 border border-slate-200" />
-        <div className="flex-1">
-          <label className="label">Product image link</label>
-          <input className="input" placeholder="https://… or /images/products/photo.jpg" value={form.imageUrl} onChange={set("imageUrl")} />
-          <p className="text-xs text-slate-400 mt-1">Paste a link to the product photo. It shows on the POS and in the product list.</p>
         </div>
       </div>
       <div><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={set("description")} /></div>

@@ -57,7 +57,7 @@ function SetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-900 via-slate-900 to-slate-800 p-4">
       <div className="card w-full max-w-md p-8">
         <div className="mb-6 text-center">
-          <div className="text-2xl font-bold text-teal-700">NebTech Store</div>
+          <div className="text-2xl font-bold text-teal-700">Mwananchi Pharmacy</div>
           <p className="text-sm text-slate-500 mt-1">
             {info?.purpose === "invite" ? "Set up your account" : "Choose a new password"}
           </p>

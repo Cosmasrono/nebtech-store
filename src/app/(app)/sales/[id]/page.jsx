@@ -31,7 +31,7 @@ export default function SaleDetailPage({ params }) {
 
       <div className="card p-6" id="receipt">
         <div className="text-center mb-4">
-          <div className="font-bold text-lg">NebTech Beauty &amp; Cosmetics</div>
+          <div className="font-bold text-lg">Mwananchi Pharmacy</div>
           <div className="text-xs text-slate-500">{sale.branch?.name || "Main Store"}</div>
           <div className="text-xs text-slate-500 mt-1">{new Date(sale.createdAt).toLocaleString("en-KE")}</div>
           <div className="text-sm font-mono mt-1">{sale.receiptNumber}</div>

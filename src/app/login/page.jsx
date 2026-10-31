@@ -42,16 +42,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left: background image + POS summary */}
+      {/* Left: POS summary */}
       <div
-        className="relative hidden lg:flex flex-col justify-between p-10 text-white bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "linear-gradient(135deg, rgba(13,148,136,0.80), rgba(15,23,42,0.90)), url('https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1600&q=80')",
-        }}
+        className="relative hidden lg:flex flex-col justify-between p-10 text-white bg-gradient-to-br from-teal-600 to-slate-900"
       >
         <div>
-          <div className="text-3xl font-bold tracking-tight">NebTech Store</div>
+          <div className="text-3xl font-bold tracking-tight">Mwananchi Pharmacy</div>
           <p className="mt-2 text-teal-100/90 max-w-md">
             An all-in-one POS to run your retail business — sell, track stock,
             get paid and see what’s working.
@@ -71,7 +67,7 @@ export default function LoginPage() {
         </div>
 
         <div className="text-xs text-teal-100/70">
-          © {new Date().getFullYear()} NebTech Store
+          © {new Date().getFullYear()} Mwananchi Pharmacy
         </div>
       </div>
 
@@ -79,7 +75,7 @@ export default function LoginPage() {
       <div className="flex items-center justify-center p-6 bg-gradient-to-br from-teal-900 via-slate-900 to-slate-800 lg:bg-slate-50 lg:bg-none">
         <div className="card w-full max-w-md p-8">
           <div className="mb-6 text-center">
-            <div className="text-2xl font-bold text-teal-700">NebTech Store</div>
+            <div className="text-2xl font-bold text-teal-700">Mwananchi Pharmacy</div>
             <p className="text-sm text-slate-500 mt-1">Sign in to your account</p>
           </div>
           {error && (

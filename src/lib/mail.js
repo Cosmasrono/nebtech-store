@@ -24,14 +24,14 @@ const escapeHtml = (s) =>
 
 export async function sendMail({ to, subject, text, html }) {
   if (!mailConfigured()) throw new Error("Email is not configured. Set MAIL_HOST, MAIL_USERNAME and MAIL_PASSWORD in .env.");
-  const fromName = process.env.MAIL_FROM_NAME || process.env.NEXT_PUBLIC_APP_NAME || "NebTech Store";
+  const fromName = process.env.MAIL_FROM_NAME || process.env.NEXT_PUBLIC_APP_NAME || "Mwananchi Pharmacy";
   const fromAddress = process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME;
   await getTransporter().sendMail({ from: `"${fromName}" <${fromAddress}>`, to, subject, text, html });
 }
 
 /** Email with a single button linking to the set-password page. */
 export async function sendPasswordLinkEmail({ to, name, link, purpose, expiresHours }) {
-  const app = process.env.NEXT_PUBLIC_APP_NAME || "NebTech Store";
+  const app = process.env.NEXT_PUBLIC_APP_NAME || "Mwananchi Pharmacy";
   const invite = purpose === "invite";
   const subject = invite ? `You've been added to ${app}` : `Reset your ${app} password`;
   const intro = invite

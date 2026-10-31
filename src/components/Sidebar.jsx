@@ -74,7 +74,7 @@ export default function Sidebar({ user }) {
 
   const brand = (
     <>
-      <span>💄 NebTech</span> <span className="text-pink-400">Beauty</span>
+      <span>Mwananchi <span className="text-teal-400">Pharmacy</span></span>
     </>
   );
 

@@ -1,6 +1,6 @@
-// NebTech Store service worker — keeps the app shell available offline.
+// Mwananchi Pharmacy service worker — keeps the app shell available offline.
 // Bump VERSION to force clients onto fresh caches after a deploy that changes this file.
-const VERSION = "v3";
+const VERSION = "v4";
 const PAGES = `nebtech-pages-${VERSION}`;
 const ASSETS = `nebtech-assets-${VERSION}`;
 const DATA = `nebtech-data-${VERSION}`;
@@ -102,7 +102,7 @@ async function navigate(request) {
     }
     return new Response(
       `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>Offline — NebTech Store</title>
+      <title>Offline — Mwananchi Pharmacy</title>
       <div style="font-family:system-ui,sans-serif;max-width:28rem;margin:20vh auto;padding:0 1rem;text-align:center;color:#334155">
         <h1 style="font-size:1.25rem">You're offline</h1>
         <p>This page hasn't been saved on this device yet. Reconnect and open the Point of Sale once so it can work offline next time.</p>

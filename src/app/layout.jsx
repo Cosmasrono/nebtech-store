@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "NebTech Store",
+  title: "Mwananchi Pharmacy",
   description: "Point of Sale & Inventory Management",
   manifest: "/manifest.json",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },

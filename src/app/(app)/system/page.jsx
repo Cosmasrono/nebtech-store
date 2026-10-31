@@ -31,7 +31,7 @@ export default function SystemPage() {
   async function seedCatalog() {
     if (!confirm(
       "Load the Cosmetics catalog?\n\n" +
-      `• ${CATALOG_SIZE} cosmetics products (with pictures) will be added and stock split across your active branches.\n` +
+      `• ${CATALOG_SIZE} cosmetics products will be added and stock split across your active branches.\n` +
       "• Current products with no sales are removed; those with sale history are deactivated (history is kept)."
     )) return;
 
@@ -73,7 +73,7 @@ export default function SystemPage() {
         <div>
           <h2 className="text-sm font-semibold">Cosmetics catalog</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Load {CATALOG_SIZE} cosmetics products with pictures: skincare, makeup, body care, hair care,
+            Load {CATALOG_SIZE} cosmetics products: skincare, makeup, body care, hair care,
             fragrance, nails and tools. Stock is distributed evenly across all active branches. Existing
             products with sales history are deactivated (history is preserved); others are removed.
           </p>

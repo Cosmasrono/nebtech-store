@@ -1,4 +1,4 @@
-// NebTech Store — Prisma schema for MongoDB
+// Mwananchi Pharmacy — Prisma schema for MongoDB
 // Ported from Laravel migrations. Money uses Float (Mongo connector has no Decimal).
 
 generator client {
