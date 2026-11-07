@@ -10,6 +10,7 @@ export default function UsersPage() {
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const [msg, setMsg] = useState(null);
   const [linkInfo, setLinkInfo] = useState(null); // { email, link } when the email couldn't be sent
 
@@ -53,6 +54,27 @@ export default function UsersPage() {
     reportLink(u.email, d);
   }
 
+  async function remove(u) {
+    const res = await fetch(`/api/users/${u.id}?permanent=1`, { method: "DELETE" });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return d.message || "Couldn't delete this user.";
+    setDeleting(null);
+    setLinkInfo(null);
+    setMsg({ ok: true, text: d.message || `${u.name} was deleted.` });
+    load();
+    return null;
+  }
+
+  async function disable(u) {
+    const res = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return d.message || "Couldn't disable this user.";
+    setDeleting(null);
+    setMsg({ ok: true, text: `${u.name} was disabled and can no longer sign in.` });
+    load();
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -88,6 +110,7 @@ export default function UsersPage() {
                   )}
                   <button className="text-teal-700 text-sm hover:underline"
                     onClick={() => setEditing({ ...u, roleId: u.roles?.[0]?.id || "", branchId: u.branchId || "" })}>Edit</button>
+                  <button className="text-rose-600 text-sm hover:underline" onClick={() => { setMsg(null); setDeleting(u); }}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -96,7 +119,42 @@ export default function UsersPage() {
         </table>
       </div>
       {editing && <UserModal row={editing} roles={roles} branches={branches} onClose={() => setEditing(null)} onSave={save} />}
+      {deleting && <DeleteModal user={deleting} onClose={() => setDeleting(null)} onDelete={remove} onDisable={disable} />}
     </div>
+  );
+}
+
+function DeleteModal({ user, onClose, onDelete, onDisable }) {
+  const [error, setError] = useState("");
+  const [blocked, setBlocked] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(action) {
+    setError("");
+    setBusy(true);
+    const err = await action(user);
+    setBusy(false);
+    if (err) { setError(err); setBlocked(/disable the account instead/i.test(err)); }
+  }
+
+  return (
+    <Modal title="Delete user" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Permanently delete <b>{user.name}</b> ({user.email})? They will no longer be able to sign in, and this can&apos;t be undone.
+        </p>
+        <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+          Users who have made sales or other records can&apos;t be deleted, so those records stay correct. You can disable them instead.
+        </p>
+        {error && <div className="text-sm rounded-lg bg-rose-50 text-rose-700 px-3 py-2">{error}</div>}
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+          {blocked
+            ? user.isActive && <button className="btn-primary" onClick={() => run(onDisable)} disabled={busy}>{busy ? "Disabling…" : "Disable instead"}</button>
+            : <button className="btn-danger" onClick={() => run(onDelete)} disabled={busy}>{busy ? "Deleting…" : "Delete permanently"}</button>}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
