@@ -7,6 +7,10 @@ const TTL_HOURS = { invite: 72, reset: 1 };
 
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 
+// MongoDB: a token created without usedAt has no such field at all, and Prisma's
+// `usedAt: null` only matches an explicit null. Match both "missing" and "null".
+const UNUSED = { OR: [{ usedAt: null }, { usedAt: { isSet: false } }] };
+
 function appUrl(req) {
   const fromEnv = process.env.APP_URL?.replace(/\/$/, "");
   if (fromEnv) return fromEnv;
@@ -16,7 +20,7 @@ function appUrl(req) {
 
 /** Creates a token (replacing any unused ones) and returns the set-password link. */
 export async function createPasswordLink(user, purpose, req) {
-  await prisma.passwordToken.deleteMany({ where: { userId: user.id, usedAt: null } });
+  await prisma.passwordToken.deleteMany({ where: { userId: user.id, ...UNUSED } });
   const token = randomBytes(32).toString("base64url");
   await prisma.passwordToken.create({
     data: {
@@ -64,6 +68,6 @@ export async function findValidToken(token) {
 
 /** Marks the token used. Returns false if another request used it first. */
 export async function consumeToken(id) {
-  const res = await prisma.passwordToken.updateMany({ where: { id, usedAt: null }, data: { usedAt: new Date() } });
+  const res = await prisma.passwordToken.updateMany({ where: { id, ...UNUSED }, data: { usedAt: new Date() } });
   return res.count === 1;
 }
