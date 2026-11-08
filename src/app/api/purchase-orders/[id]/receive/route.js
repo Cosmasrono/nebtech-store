@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 // Port of PurchaseOrderController@receive — receive items into stock
 export async function POST(req, { params }) {
@@ -90,5 +91,13 @@ export async function POST(req, { params }) {
     });
   }, { maxWait: 10000, timeout: 30000 });
 
+  await audit({
+    userId: user.id, event: "stock_received", type: "PurchaseOrder", auditableId: id, req,
+    newValues: {
+      poNumber: order.poNumber,
+      unitsReceived: items.reduce((sum, r) => sum + Number(r.quantityReceived || 0), 0),
+      unitsDamaged: items.reduce((sum, r) => sum + Number(r.quantityDamaged || 0), 0),
+    },
+  });
   return Response.json({ message: "Stock received." });
 }

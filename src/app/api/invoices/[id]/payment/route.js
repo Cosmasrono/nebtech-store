@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 export async function POST(req, { params }) {
   const { user, error } = await requireAuth("view_all_sales");
@@ -40,6 +41,10 @@ export async function POST(req, { params }) {
       status: newBalance <= 0.009 ? "paid" : "partial",
       ...(newBalance <= 0.009 && { paidAt: new Date() }),
     },
+  });
+  await audit({
+    userId: user.id, event: "invoice_payment", type: "Invoice", auditableId: id, req,
+    newValues: { invoiceNumber: invoice.invoiceNumber, amount, method: b.paymentMethod || "cash", balanceDue: newBalance },
   });
   return Response.json({ data: updated });
 }

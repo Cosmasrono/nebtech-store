@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 export async function GET() {
   const { error } = await requireAuth("view_inventory");
@@ -51,6 +52,7 @@ export async function POST(req) {
         data: { productId, branchId: toBranchId, fromBranchId, type: "transfer", quantity: qty, notes: notes || "Branch transfer", userId: user.id },
       });
     }, { maxWait: 10000, timeout: 30000 });
+    await audit({ userId: user.id, event: "stock_transferred", type: "Product", auditableId: productId, newValues: { fromBranchId, toBranchId, quantity: qty, notes: notes || null }, req });
     return Response.json({ message: "Transfer complete." }, { status: 201 });
   } catch (e) {
     return Response.json({ message: e.message }, { status: 422 });

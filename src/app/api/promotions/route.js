@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 export async function GET(req) {
   const { error } = await requireAuth();
@@ -24,7 +25,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error } = await requireAuth("change_settings");
+  const { user, error } = await requireAuth("change_settings");
   if (error) return error;
   const b = await req.json();
   if (!b.name || b.value == null) return Response.json({ message: "name and value are required." }, { status: 422 });
@@ -40,5 +41,6 @@ export async function POST(req) {
       isActive: b.isActive ?? true,
     },
   });
+  await audit({ userId: user.id, event: "created", type: "Promotion", auditableId: promo.id, newValues: { name: promo.name, code: promo.code, type: promo.type, value: promo.value }, req });
   return Response.json({ data: promo }, { status: 201 });
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { resetScreenLock } from "@/lib/screen-lock";
 
 const FEATURES = [
   { title: "Point of Sale", desc: "Fast checkout, cart & receipts" },
@@ -32,6 +33,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (res.ok) {
+      resetScreenLock();
       router.push("/dashboard");
       router.refresh();
     } else {

@@ -5,12 +5,14 @@ import Sidebar from "@/components/Sidebar";
 import ToastProvider from "@/components/ToastProvider";
 import TopProgress from "@/components/TopProgress";
 import OfflineSync from "@/components/OfflineSync";
+import ScreenLock from "@/components/ScreenLock";
 
 export default async function AppLayout({ children }) {
   const authUser = await getAuthUser();
   if (!authUser) redirect("/login");
   const isAdmin = isAdminEmail(authUser.email) || userHasRole(authUser, "owner", "super_admin");
   const session = {
+    id: authUser.id,
     name: authUser.name,
     email: authUser.email,
     isAdmin,
@@ -22,6 +24,7 @@ export default async function AppLayout({ children }) {
   return (
     <ToastProvider>
     <Suspense fallback={null}><TopProgress /></Suspense>
+    <ScreenLock user={{ id: session.id, name: session.name }}>
     <div className="min-h-screen">
       <Sidebar user={session} />
       <main className="lg:pl-60 min-h-screen flex flex-col">
@@ -37,6 +40,7 @@ export default async function AppLayout({ children }) {
         </footer>
       </main>
     </div>
+    </ScreenLock>
     </ToastProvider>
   );
 }

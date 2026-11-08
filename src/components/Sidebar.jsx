@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearOfflineData, getQueuedSales, syncQueuedSales } from "@/lib/offline";
+import { signOut } from "@/lib/sign-out";
+import { CHANGE_PIN_EVENT } from "@/lib/screen-lock";
 
 const NAV = [
   { section: "Operations", items: [
@@ -54,20 +55,7 @@ export default function Sidebar({ user }) {
   const nav = NAV.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter((g) => g.items.length);
 
   async function logout() {
-    // Offline sales are uploaded under whoever is signed in, so flush them first.
-    await syncQueuedSales().catch(() => {});
-    const left = await getQueuedSales().catch(() => []);
-    if (left.length && !confirm(
-      `${left.length} offline sale(s) on this device have not been uploaded. Signing out will delete them. Sign out anyway?`
-    )) return;
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      alert("You're offline. Reconnect to sign out.");
-      return;
-    }
-    await clearOfflineData().catch(() => {});
-    navigator.serviceWorker?.controller?.postMessage("clear-caches");
+    if (!(await signOut())) return;
     router.push("/login");
     router.refresh();
   }
@@ -120,7 +108,10 @@ export default function Sidebar({ user }) {
           </div>
         ))}
       </nav>
-      <button onClick={logout} className="m-4 btn-secondary !bg-slate-800 !border-slate-700 !text-slate-300 hover:!bg-slate-700">
+      <button type="button" onClick={() => window.dispatchEvent(new Event(CHANGE_PIN_EVENT))} className="mx-4 mt-3 mb-2 text-xs text-slate-400 hover:text-white">
+        Change PIN
+      </button>
+      <button onClick={logout} className="mx-4 mb-4 btn-secondary !bg-slate-800 !border-slate-700 !text-slate-300 hover:!bg-slate-700">
         Sign out
       </button>
     </aside>

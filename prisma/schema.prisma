@@ -21,6 +21,9 @@ model User {
   password        String
   // Set when the password changes; sessions issued before this are rejected.
   passwordChangedAt DateTime?
+  // 4-digit screen-unlock PIN (bcrypt). Optional: existing accounts don't have one until they set it.
+  pinHash           String?
+  pinFailedAttempts Int?
   isActive        Boolean   @default(true)
   branchId        String?   @db.ObjectId
   branch          Branch?   @relation("UserBranch", fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -253,6 +256,7 @@ model Supplier {
   email         String?
   phone         String?
   address       String?
+  paymentTerms  String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -851,6 +855,15 @@ model AuditLog {
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
+
+  // Suspicious-activity alerts. Only set on entries a rule flagged.
+  severity     String? // low | medium | high
+  flags        Json? // [{ code, severity, message }]
+  reviewStatus String? // open | cleared | confirmed
+  reviewNote   String?
+  reviewedById String?   @db.ObjectId
+  reviewedAt   DateTime?
+  aiAssessment Json? // { risk, explanation, recommendedAction, generatedAt }
 
   @@index([auditableType, auditableId])
   @@index([event])

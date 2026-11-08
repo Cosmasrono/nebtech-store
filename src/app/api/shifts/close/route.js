@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 
 export async function POST(req) {
   const { user, error } = await requireAuth("close_shift");
@@ -32,6 +33,10 @@ export async function POST(req) {
       cashShortageOverage: diff,
       closedById: user.id,
     },
+  });
+  await audit({
+    userId: user.id, event: "shift_closed", type: "Shift", auditableId: shift.id, req,
+    newValues: { expected, counted, difference: diff, mpesaRecorded: shift.totalMpesaSales, mpesaConfirmed, mpesaVariance, status: closed.status, notes: closingNotes || null },
   });
   return Response.json({ data: { ...closed, mpesaConfirmedTotal: mpesaConfirmed, mpesaVariance } });
 }

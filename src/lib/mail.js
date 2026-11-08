@@ -29,6 +29,25 @@ export async function sendMail({ to, subject, text, html }) {
   await getTransporter().sendMail({ from: `"${fromName}" <${fromAddress}>`, to, subject, text, html });
 }
 
+/** Tells an owner about a high-severity alert: what happened, and a link to review it. */
+export async function sendSecurityAlertEmail({ to, actor, when, reasons }) {
+  const app = process.env.NEXT_PUBLIC_APP_NAME || "Mwananchi Pharmacy";
+  const base = process.env.APP_URL?.replace(/\/$/, "");
+  const link = base ? `${base}/audit-logs` : null;
+  const time = new Date(when).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" });
+  const note = "This is an automatic check and may be a false alarm. Please look into it before acting.";
+  const text = `Suspicious activity on ${app}\n\nBy: ${actor}\nWhen: ${time} (Nairobi)\n\n${reasons.map((r) => `- ${r}`).join("\n")}\n\n${note}${link ? `\n\nReview it: ${link}` : ""}`;
+  const html = `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
+    <h2 style="color:#be123c;margin:0 0 16px">Suspicious activity on ${escapeHtml(app)}</h2>
+    <p><b>By:</b> ${escapeHtml(actor)}<br><b>When:</b> ${escapeHtml(time)} (Nairobi)</p>
+    <ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+    <p style="font-size:13px;color:#64748b">${escapeHtml(note)}</p>
+    ${link ? `<p style="margin:24px 0"><a href="${escapeHtml(link)}" style="background:#0f766e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold;display:inline-block">Review alert</a></p>` : ""}
+  </div>`;
+  await sendMail({ to, subject: `Security alert: suspicious activity on ${app}`, text, html });
+}
+
 /** Email with a single button linking to the set-password page. */
 export async function sendPasswordLinkEmail({ to, name, link, purpose, expiresHours }) {
   const app = process.env.NEXT_PUBLIC_APP_NAME || "Mwananchi Pharmacy";

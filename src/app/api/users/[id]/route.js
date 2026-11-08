@@ -20,6 +20,7 @@ export async function PUT(req, { params }) {
   }
 
   const data = {};
+  let newRoleName; // set only when the role actually changes
   for (const k of ["name", "phone", "branchId"]) if (b[k] !== undefined) data[k] = b[k] || (k === "name" ? target.name : null);
   if (b.email) data.email = String(b.email).toLowerCase().trim();
   if (b.roleId !== undefined) {
@@ -29,6 +30,7 @@ export async function PUT(req, { params }) {
       return Response.json({ message: "You can't change your own role. Ask another administrator." }, { status: 422 });
     }
     data.roleIds = [role.id];
+    if (!target.roleIds.includes(role.id)) newRoleName = role.name;
   }
   if (b.isActive !== undefined) {
     if (id === me.id && !b.isActive) return Response.json({ message: "You cannot deactivate yourself." }, { status: 422 });
@@ -39,7 +41,11 @@ export async function PUT(req, { params }) {
   try {
     const user = await prisma.user.update({ where: { id }, data });
     invalidateAuthUser(id);
-    await audit({ userId: me.id, event: "updated", type: "User", auditableId: id, newValues: { ...data }, req });
+    await audit({
+      userId: me.id, event: "updated", type: "User", auditableId: id, req,
+      oldValues: { name: target.name, wasTopRole: (target.roles || []).some(isTopRole), roles: (target.roles || []).map((r) => r.name) },
+      newValues: { ...data, ...(newRoleName && { roleName: newRoleName }) },
+    });
     const { password, ...safe } = user;
     return Response.json({ data: safe });
   } catch (e) {

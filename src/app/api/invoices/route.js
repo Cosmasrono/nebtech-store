@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { generateInvoiceNumber } from "@/lib/numbers";
+import { audit } from "@/lib/audit";
 
 export async function GET() {
   const { error } = await requireAuth("view_all_sales");
@@ -77,6 +78,10 @@ export async function POST(req) {
       items: { create: items },
     },
     include: { items: true },
+  });
+  await audit({
+    userId: user.id, event: "created", type: "Invoice", auditableId: invoice.id, req,
+    newValues: { invoiceNumber: invoice.invoiceNumber, totalAmount, discountAmount, customerId: b.customerId },
   });
   return Response.json({ data: invoice }, { status: 201 });
 }
